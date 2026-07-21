@@ -116,6 +116,25 @@ final class ScholarshipModuleTest extends TestCase
         $this->get(route('reports.index'))->assertOk()->assertSee('Scholarship Reports');
     }
 
+    public function test_vle_application_form_contains_production_sections(): void
+    {
+        $this->userWithPermissions((int) config('csc.vle_role_id'));
+        AcademicSession::factory()->create(['name' => '2026-27']);
+        Scheme::factory()->create(['id' => 1, 'code' => 'SCH1', 'name' => 'Meritorious Student Award Scheme']);
+
+        $this->get(route('applications.create'))
+            ->assertOk()
+            ->assertSee('Information Regarding Primary Society', false)
+            ->assertSee('Head of Family Detail', false)
+            ->assertSee('Information of Student', false)
+            ->assertSee('Student Educational Detail', false)
+            ->assertSee('Tendupatta Collection Details', false)
+            ->assertSee('Student Bank Details', false)
+            ->assertSee('Attach Document', false)
+            ->assertSee('document_uploads[tpcard]', false)
+            ->assertSee('student_bank_account_number', false);
+    }
+
     public function test_csc_connect_callback_creates_vle_session(): void
     {
         Http::fake([
@@ -195,7 +214,21 @@ final class ScholarshipModuleTest extends TestCase
             'scheme_id' => $schemeId,
             'student_aadhaar' => '111122223333',
             'student_name' => 'Asha Kumar',
+            'gender' => 'Female',
+            'date_of_birth' => '2010-01-01',
+            'mobile' => '9876543210',
+            'address' => 'Forest Colony',
+            'pincode' => '492001',
+            'district_id' => 1,
+            'district_union_id' => 1,
+            'samiti_id' => 1,
+            'phad_id' => 1,
+            'block_code' => '101',
+            'area' => 'Rural',
+            'gram_panchayat_code' => '101001',
+            'village_code' => '101001001',
             'class' => '10',
+            'school_college_name' => 'Government School',
             'marks_obtained' => 400,
             'maximum_marks' => 500,
             'current_year_of_study' => 1,
@@ -207,6 +240,13 @@ final class ScholarshipModuleTest extends TestCase
             'head_of_family_aadhaar' => '999988887777',
             'head_of_family_name' => 'Family Head',
             'sangrahak_card_number' => 'SG-1',
+            'documents' => [
+                'tpcard' => ['file_path' => 'tests/tpcard.pdf'],
+                'haadharcard' => ['file_path' => 'tests/hof-aadhaar.pdf'],
+                'aadharcard' => ['file_path' => 'tests/student-aadhaar.pdf'],
+                'admission_copy' => ['file_path' => 'tests/marksheet.pdf'],
+                'passbook' => ['file_path' => 'tests/passbook.pdf'],
+            ],
             'tendupatta_collections' => [
                 ['collection_year' => '2025-26', 'quantity_gaddi' => 12],
             ],

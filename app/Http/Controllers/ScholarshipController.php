@@ -13,6 +13,7 @@ use App\Models\ScholarshipWalletTransaction;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
@@ -150,6 +151,18 @@ class ScholarshipController extends Controller
             'application' => $application,
             'schemes' => Scheme::query()->where('is_active', true)->orderBy('name')->get(),
             'sessions' => AcademicSession::query()->orderByDesc('start_date')->get(),
+            'districts' => DB::table('source_data_archives')
+                ->where('source_table', 'districts')
+                ->get()
+                ->map(fn (object $row): array => [
+                    'id' => Arr::get((array) json_decode((string) $row->payload, true), 'district_code'),
+                    'name' => Arr::get((array) json_decode((string) $row->payload, true), 'district_name'),
+                ])
+                ->sortBy('name')
+                ->values(),
+            'districtUnions' => DB::table('district_unions')->orderBy('name')->get(['id', 'name']),
+            'samitis' => DB::table('samitis')->orderBy('name')->get(['id', 'name']),
+            'phads' => DB::table('phads')->orderBy('name')->get(['id', 'code', 'name']),
         ];
     }
 
@@ -158,7 +171,7 @@ class ScholarshipController extends Controller
      */
     private function payload(Request $request): array
     {
-        return $request->validate([
+        $payload = $request->validate([
             'academic_session_id' => ['required', 'integer', 'exists:academic_sessions,id'],
             'scheme_id' => ['required', 'integer', 'exists:schemes,id'],
             'student_aadhaar' => ['required', 'digits:12'],
@@ -167,6 +180,14 @@ class ScholarshipController extends Controller
             'date_of_birth' => ['nullable', 'date'],
             'mobile' => ['nullable', 'string', 'max:20'],
             'address' => ['nullable', 'string'],
+            'pincode' => ['nullable', 'digits:6'],
+            'block_code' => ['nullable', 'string', 'max:30'],
+            'area' => ['nullable', 'in:Rural,Urban'],
+            'gram_panchayat_code' => ['nullable', 'string', 'max:30'],
+            'village_code' => ['nullable', 'string', 'max:30'],
+            'city_code' => ['nullable', 'string', 'max:30'],
+            'ward_code' => ['nullable', 'string', 'max:30'],
+            'ward_number' => ['nullable', 'string', 'max:30'],
             'class' => ['nullable', 'string', 'max:20'],
             'school_college_name' => ['nullable', 'string', 'max:255'],
             'board_university' => ['nullable', 'string', 'max:255'],
@@ -174,8 +195,11 @@ class ScholarshipController extends Controller
             'marks_obtained' => ['nullable', 'numeric', 'min:0'],
             'maximum_marks' => ['nullable', 'numeric', 'min:1'],
             'course_name' => ['nullable', 'string', 'max:255'],
+            'course_duration' => ['nullable', 'integer', 'min:1', 'max:10'],
             'institution_name' => ['nullable', 'string', 'max:255'],
             'admission_year' => ['nullable', 'integer', 'min:1900', 'max:2100'],
+            'first_year_session' => ['nullable', 'string', 'max:20'],
+            'scholarship_session' => ['nullable', 'string', 'max:20'],
             'current_year_of_study' => ['nullable', 'integer', 'min:1', 'max:10'],
             'sangrahak_card_number' => ['nullable', 'string', 'max:255'],
             'head_of_family_aadhaar' => ['nullable', 'digits:12'],
@@ -196,7 +220,22 @@ class ScholarshipController extends Controller
             'tendupatta_collections.*.collection_year' => ['nullable', 'string', 'max:9'],
             'tendupatta_collections.*.quantity_gaddi' => ['nullable', 'numeric', 'min:0'],
             'documents' => ['nullable', 'array'],
+            'document_uploads' => ['nullable', 'array'],
+            'document_uploads.*' => ['nullable', 'file', 'mimes:jpg,jpeg,png,pdf', 'max:2048'],
         ]);
+
+        foreach ($request->file('document_uploads', []) as $documentType => $file) {
+            $payload['documents'][$documentType] = [
+                'file_path' => $file->store('scholarship-documents', 'public'),
+                'source' => 'MANUAL',
+            ];
+        }
+
+        if (! isset($payload['documents'])) {
+            $payload['documents'] = [];
+        }
+
+        return $payload;
     }
 
     private function isVle(Request $request): bool

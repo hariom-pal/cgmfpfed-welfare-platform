@@ -38,6 +38,14 @@ return new class extends Migration
             $table->date('date_of_birth')->nullable();
             $table->string('mobile', 20)->nullable();
             $table->text('address')->nullable();
+            $table->string('pincode', 6)->nullable();
+            $table->string('block_code', 30)->nullable()->index();
+            $table->string('area', 20)->nullable();
+            $table->string('gram_panchayat_code', 30)->nullable()->index();
+            $table->string('village_code', 30)->nullable()->index();
+            $table->string('city_code', 30)->nullable()->index();
+            $table->string('ward_code', 30)->nullable()->index();
+            $table->string('ward_number', 30)->nullable();
             $table->string('class', 20)->nullable();
             $table->string('school_college_name')->nullable();
             $table->string('board_university')->nullable();
@@ -46,8 +54,11 @@ return new class extends Migration
             $table->decimal('maximum_marks', 10, 2)->nullable();
             $table->decimal('percentage', 5, 2)->nullable();
             $table->string('course_name')->nullable();
+            $table->unsignedSmallInteger('course_duration')->nullable();
             $table->string('institution_name')->nullable();
             $table->unsignedSmallInteger('admission_year')->nullable();
+            $table->string('first_year_session', 20)->nullable();
+            $table->string('scholarship_session', 20)->nullable();
             $table->unsignedSmallInteger('current_year_of_study')->nullable();
             $table->string('sangrahak_card_number')->nullable();
             $table->string('head_of_family_aadhaar', 12)->nullable();

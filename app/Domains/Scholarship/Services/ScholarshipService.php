@@ -292,6 +292,14 @@ final class ScholarshipService extends BaseService implements ScholarshipService
             'date_of_birth' => $this->inputValue($data, 'date_of_birth', $application),
             'mobile' => $this->inputValue($data, 'mobile', $application),
             'address' => $this->inputValue($data, 'address', $application),
+            'pincode' => $this->digitsOrNull($this->inputValue($data, 'pincode', $application)),
+            'block_code' => $this->inputValue($data, 'block_code', $application),
+            'area' => $this->inputValue($data, 'area', $application),
+            'gram_panchayat_code' => $this->inputValue($data, 'gram_panchayat_code', $application),
+            'village_code' => $this->inputValue($data, 'village_code', $application),
+            'city_code' => $this->inputValue($data, 'city_code', $application),
+            'ward_code' => $this->inputValue($data, 'ward_code', $application),
+            'ward_number' => $this->inputValue($data, 'ward_number', $application),
             'class' => $class,
             'school_college_name' => $this->inputValue($data, 'school_college_name', $application),
             'board_university' => $this->inputValue($data, 'board_university', $application),
@@ -300,8 +308,11 @@ final class ScholarshipService extends BaseService implements ScholarshipService
             'maximum_marks' => $maximumMarks,
             'percentage' => $percentage,
             'course_name' => $this->inputValue($data, 'course_name', $application),
+            'course_duration' => $this->nullableInt($this->inputValue($data, 'course_duration', $application)),
             'institution_name' => $this->inputValue($data, 'institution_name', $application),
             'admission_year' => $this->nullableInt($this->inputValue($data, 'admission_year', $application)),
+            'first_year_session' => $this->inputValue($data, 'first_year_session', $application),
+            'scholarship_session' => $this->inputValue($data, 'scholarship_session', $application),
             'current_year_of_study' => $yearOfStudy ?: null,
             'sangrahak_card_number' => $this->inputValue($data, 'sangrahak_card_number', $application),
             'head_of_family_aadhaar' => array_key_exists('head_of_family_aadhaar', $data) ? preg_replace('/\D/', '', (string) $data['head_of_family_aadhaar']) : $this->inputValue($data, 'head_of_family_aadhaar', $application),
@@ -332,6 +343,78 @@ final class ScholarshipService extends BaseService implements ScholarshipService
 
         if (in_array((int) $application->scheme_id, [1, 2], true) && ! in_array((string) $application->class, ['10', '12'], true)) {
             $errors['class'] = 'Scheme 1 and Scheme 2 are allowed only for Class 10 or Class 12.';
+        }
+
+        foreach ([
+            'district_union_id' => 'District Union is mandatory.',
+            'samiti_id' => 'Samiti is mandatory.',
+            'phad_id' => 'Phad is mandatory.',
+            'district_id' => 'District is mandatory.',
+            'block_code' => 'Block is mandatory.',
+            'area' => 'Area is mandatory.',
+            'student_name' => 'Student name is mandatory.',
+            'gender' => 'Gender is mandatory.',
+            'date_of_birth' => 'Student date of birth is mandatory.',
+            'mobile' => 'Contact number is mandatory.',
+            'address' => 'Address is mandatory.',
+            'pincode' => 'Pincode is mandatory.',
+            'sangrahak_card_number' => 'Sangrahak card number is mandatory.',
+            'head_of_family_aadhaar' => 'Head of Family Aadhaar is mandatory.',
+            'head_of_family_name' => 'Head of Family name is mandatory.',
+            'school_college_name' => 'School or college name is mandatory.',
+            'marks_obtained' => 'Marks obtained is mandatory.',
+            'maximum_marks' => 'Maximum marks is mandatory.',
+        ] as $field => $message) {
+            if ($application->{$field} === null || $application->{$field} === '') {
+                $errors[$field] = $message;
+            }
+        }
+
+        if ($application->area === 'Rural' && ($application->gram_panchayat_code === null || $application->village_code === null)) {
+            $errors['gram_panchayat_code'] = 'Gram Panchayat and Village are mandatory for Rural applications.';
+        }
+
+        if ($application->area === 'Urban' && ($application->city_code === null || $application->ward_code === null)) {
+            $errors['city_code'] = 'City and Ward are mandatory for Urban applications.';
+        }
+
+        if (strlen((string) $application->pincode) !== 6) {
+            $errors['pincode'] = 'Pincode must be 6 digits.';
+        }
+
+        if (strlen((string) $application->mobile) !== 10) {
+            $errors['mobile'] = 'Contact number must be 10 digits.';
+        }
+
+        if ($application->student_aadhaar === $application->head_of_family_aadhaar) {
+            $errors['head_of_family_aadhaar'] = 'Student and Head of Family Aadhaar cannot be same.';
+        }
+
+        if (in_array((int) $application->scheme_id, [3, 4], true)) {
+            foreach ([
+                'course_name' => 'Course name is mandatory.',
+                'course_duration' => 'Course duration is mandatory.',
+                'institution_name' => 'Institute name is mandatory.',
+                'board_university' => 'University name is mandatory.',
+                'current_year_of_study' => 'Education year is mandatory.',
+            ] as $field => $message) {
+                if ($application->{$field} === null || $application->{$field} === '') {
+                    $errors[$field] = $message;
+                }
+            }
+        }
+
+        foreach ($this->requiredDocumentTypes((int) $application->scheme_id) as $documentType) {
+            $hasDocument = ScholarshipApplicationDocument::query()
+                ->where('scholarship_application_id', $application->id)
+                ->where('document_type', $documentType)
+                ->whereNotNull('file_path')
+                ->where('file_path', '!=', '')
+                ->exists();
+
+            if (! $hasDocument) {
+                $errors['documents.'.$documentType] = $this->documentLabel($documentType).' is mandatory.';
+            }
         }
 
         $duplicateSession = ScholarshipApplication::query()
@@ -442,6 +525,33 @@ final class ScholarshipService extends BaseService implements ScholarshipService
 
             return $batch->refresh();
         });
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function requiredDocumentTypes(int $schemeId): array
+    {
+        $documents = ['tpcard', 'haadharcard', 'aadharcard', 'admission_copy', 'passbook'];
+
+        if (in_array($schemeId, [3, 4], true)) {
+            $documents[] = 'admission_receipt';
+        }
+
+        return $documents;
+    }
+
+    private function documentLabel(string $documentType): string
+    {
+        return match ($documentType) {
+            'tpcard' => 'Sangrahak Card',
+            'haadharcard' => 'Head of Family Aadhaar Card',
+            'aadharcard' => 'Student Aadhaar Card',
+            'admission_copy' => 'Marksheet Copy',
+            'passbook' => 'Student Bank Passbook',
+            'admission_receipt' => 'Admission Receipt',
+            default => str_replace('_', ' ', $documentType),
+        };
     }
 
     private function syncChildren(ScholarshipApplication $application, array $data, bool $verified, User $user): void
@@ -582,5 +692,12 @@ final class ScholarshipService extends BaseService implements ScholarshipService
     private function nullableFloat(mixed $value): ?float
     {
         return $value === null || $value === '' ? null : (float) $value;
+    }
+
+    private function digitsOrNull(mixed $value): ?string
+    {
+        $digits = preg_replace('/\D/', '', (string) $value);
+
+        return $digits === '' ? null : $digits;
     }
 }
