@@ -15,10 +15,13 @@
     <form method="POST" action="{{ route('login.store') }}" class="login-card bg-white border p-4 shadow-lg">
         @csrf
         <div class="text-center mb-4">
-            <div class="login-emblem mx-auto mb-3"><i class="fa-solid fa-landmark"></i></div>
+            <div class="d-flex align-items-center justify-content-center gap-3 mb-3">
+                <img src="{{ asset('images/legacy/logo.png') }}" alt="CGMFPFED" style="height: 54px; width: auto;">
+                <img src="{{ asset('images/legacy/digital.png') }}" alt="Digital Seva" style="height: 42px; width: auto;">
+            </div>
             <div class="small text-uppercase text-primary fw-semibold">Government Enterprise Portal</div>
             <h1 class="h4 mb-1">CGMFPFED Welfare Platform</h1>
-            <p class="text-muted mb-0">Legacy User Login</p>
+            <p class="text-muted mb-0">Internal Login and CSC Connect</p>
         </div>
         <x-alert />
         <div class="mb-3">
@@ -47,6 +50,13 @@
         <button type="submit" class="btn btn-primary w-100">
             <i class="fa-solid fa-right-to-bracket me-2"></i>Sign In
         </button>
+        <div class="position-relative my-3 text-center">
+            <span class="bg-white px-2 text-muted small">or</span>
+        </div>
+        <a href="{{ route('csc.login') }}" class="btn btn-outline-primary w-100 d-flex align-items-center justify-content-center gap-2">
+            <img src="{{ asset('images/legacy/csc.jpg') }}" alt="CSC" style="height: 24px; width: auto;">
+            <span>Login with CSC Connect</span>
+        </a>
     </form>
     <footer class="text-white-50 small mt-4 text-center">
         Chhattisgarh Minor Forest Produce Federation Welfare Platform

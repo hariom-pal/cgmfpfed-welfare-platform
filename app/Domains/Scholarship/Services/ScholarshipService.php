@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Domains\Scholarship\Services;
 
 use App\Contracts\Services\AadhaarServiceInterface;
+use App\Contracts\Services\WalletServiceInterface;
 use App\Domains\Scholarship\Contracts\ScholarshipServiceInterface;
 use App\Domains\Scholarship\Enums\ScholarshipApplicationStatus;
 use App\Models\ScholarshipApplication;
@@ -24,6 +25,7 @@ final class ScholarshipService extends BaseService implements ScholarshipService
 {
     public function __construct(
         private readonly AadhaarServiceInterface $aadhaarService,
+        private readonly WalletServiceInterface $walletService,
     ) {}
 
     public function createDraft(array $data, User $user): ScholarshipApplication
@@ -90,6 +92,48 @@ final class ScholarshipService extends BaseService implements ScholarshipService
             $this->notify($application, $user, 'Scholarship application submitted', $status->label());
 
             return $application->refresh();
+        });
+    }
+
+    public function prepareWalletSubmission(ScholarshipApplication $application, User $user): ScholarshipApplication
+    {
+        return DB::transaction(function () use ($application, $user): ScholarshipApplication {
+            $this->validateForSubmit($application);
+            $transaction = $this->walletService->initiateApplicationFee($application, $user);
+
+            $this->audit($application, 'wallet_payment_initiated', (int) $application->status, 'wallet', 'CSC wallet payment initiated', $user, [
+                'wallet_transaction_id' => $transaction->id,
+                'reference' => $transaction->reference,
+            ]);
+
+            return $application->refresh();
+        });
+    }
+
+    public function completeWalletSubmission(ScholarshipApplication $application, array $walletResponse, User $user): ScholarshipApplication
+    {
+        return DB::transaction(function () use ($application, $walletResponse, $user): ScholarshipApplication {
+            $success = ($walletResponse['txn_status_message'] ?? null) === 'Success' || ($walletResponse['txn_status'] ?? null) === 'Success';
+
+            if (! $success) {
+                $transaction = $this->walletService->failApplicationFee($application, $walletResponse, $user);
+                $this->audit($application, 'wallet_payment_failed', (int) $application->status, 'wallet', 'CSC wallet payment failed or cancelled', $user, [
+                    'wallet_transaction_id' => $transaction->id,
+                    'response' => $walletResponse,
+                ]);
+
+                throw ValidationException::withMessages(['wallet' => 'CSC wallet payment was not completed.']);
+            }
+
+            $transaction = $this->walletService->completeApplicationFee($application, $walletResponse, $user);
+            $application->forceFill(['wallet_paid_at' => now()])->save();
+            $submitted = $this->submit($application->refresh(), $user);
+            $this->audit($submitted, 'wallet_payment_completed', (int) $application->status, 'wallet', 'CSC wallet payment completed', $user, [
+                'wallet_transaction_id' => $transaction->id,
+                'response' => $walletResponse,
+            ]);
+
+            return $submitted->refresh();
         });
     }
 

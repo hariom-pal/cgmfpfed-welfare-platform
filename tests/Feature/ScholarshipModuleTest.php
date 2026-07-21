@@ -8,9 +8,11 @@ use App\Domains\Scholarship\Contracts\ScholarshipServiceInterface;
 use App\Domains\Scholarship\Enums\ScholarshipApplicationStatus;
 use App\Models\AcademicSession;
 use App\Models\Scheme;
+use App\Models\ScholarshipApplication;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
@@ -114,6 +116,69 @@ final class ScholarshipModuleTest extends TestCase
         $this->get(route('reports.index'))->assertOk()->assertSee('Scholarship Reports');
     }
 
+    public function test_csc_connect_callback_creates_vle_session(): void
+    {
+        Http::fake([
+            config('csc.connect.token_endpoint') => Http::response(['access_token' => 'token-1']),
+            config('csc.connect.resource_url') => Http::response([
+                'User' => [
+                    'csc_id' => '313676900017',
+                    'fullname' => 'CSC Operator',
+                    'email' => 'csc@example.test',
+                    'mobile' => '9999999999',
+                ],
+            ]),
+        ]);
+
+        $this->withSession(['connect_state' => '12345'])
+            ->get(route('csc.callback', ['code' => 'abc', 'state' => '12345']))
+            ->assertRedirect(route('dashboard'));
+
+        $this->assertAuthenticated();
+        $this->assertDatabaseHas('users', [
+            'csc_id' => '313676900017',
+            'user_type' => (int) config('csc.vle_role_id'),
+        ]);
+    }
+
+    public function test_vle_submission_waits_for_wallet_success_before_final_submit(): void
+    {
+        $user = $this->userWithPermissions((int) config('csc.vle_role_id'), '313676900017');
+        $session = AcademicSession::factory()->create(['name' => '2026-27']);
+        Scheme::factory()->create(['id' => 1, 'code' => 'SCH1', 'name' => 'Class Scholarship']);
+
+        $this->withSession(['USER_TYPE' => 'VLE', 'CSC_ID' => '313676900017'])
+            ->post(route('applications.store'), $this->validPayload($session->id, 1) + ['intent' => 'submit'])
+            ->assertRedirect();
+
+        $application = ScholarshipApplication::query()->firstOrFail();
+        $this->assertTrue($application->is_draft);
+        $this->assertDatabaseHas('scholarship_wallet_transactions', [
+            'scholarship_application_id' => $application->id,
+            'transaction_type' => 'application_fee',
+            'status' => 'pending',
+            'amount' => 50.00,
+        ]);
+
+        $reference = $application->walletTransactions()->firstOrFail()->reference;
+
+        $this->withSession(['USER_TYPE' => 'VLE', 'CSC_ID' => '313676900017'])
+            ->get(route('applications.wallet.callback', [
+                'application' => $application,
+                'mock_success' => 1,
+                'merchant_txn' => $reference,
+            ]))
+            ->assertRedirect(route('applications.show', $application));
+
+        $submitted = $application->refresh();
+        $this->assertFalse($submitted->is_draft);
+        $this->assertNotNull($submitted->wallet_paid_at);
+        $this->assertDatabaseHas('scholarship_application_audits', [
+            'scholarship_application_id' => $application->id,
+            'action' => 'wallet_payment_completed',
+        ]);
+    }
+
     private function service(): ScholarshipServiceInterface
     {
         return app(ScholarshipServiceInterface::class);
@@ -148,17 +213,18 @@ final class ScholarshipModuleTest extends TestCase
         ], $overrides);
     }
 
-    private function userWithPermissions(): User
+    private function userWithPermissions(int $roleId = 1, ?string $cscId = null): User
     {
         $user = User::factory()->create([
             'status' => '1',
-            'user_type' => 1,
+            'user_type' => $roleId,
+            'csc_id' => $cscId,
         ]);
 
         DB::table('role_priviledge')->insert([
-            ['id' => 9101, 'role_id' => 1, 'permission_id' => 5],
-            ['id' => 9102, 'role_id' => 1, 'permission_id' => 6],
-            ['id' => 9103, 'role_id' => 1, 'permission_id' => 16],
+            ['id' => 9101, 'role_id' => $roleId, 'permission_id' => 5],
+            ['id' => 9102, 'role_id' => $roleId, 'permission_id' => 6],
+            ['id' => 9103, 'role_id' => $roleId, 'permission_id' => 16],
         ]);
 
         $this->actingAs($user);

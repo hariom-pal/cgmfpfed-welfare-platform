@@ -9,8 +9,11 @@ use App\Domains\Scholarship\Contracts\ScholarshipServiceInterface;
 use App\Models\AcademicSession;
 use App\Models\Scheme;
 use App\Models\ScholarshipApplication;
+use App\Models\ScholarshipWalletTransaction;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 class ScholarshipController extends Controller
@@ -40,6 +43,12 @@ class ScholarshipController extends Controller
         $application = $this->service->createDraft($this->payload($request), $request->user());
 
         if ($request->input('intent') === 'submit') {
+            if ($this->isVle($request)) {
+                $this->service->prepareWalletSubmission($application, $request->user());
+
+                return redirect()->route('applications.wallet.redirect', $application);
+            }
+
             $application = $this->service->submit($application, $request->user());
         }
 
@@ -70,6 +79,12 @@ class ScholarshipController extends Controller
             : $this->service->resubmit($application, $this->payload($request), $request->user());
 
         if ($request->input('intent') === 'submit' && $application->is_draft) {
+            if ($this->isVle($request)) {
+                $this->service->prepareWalletSubmission($application, $request->user());
+
+                return redirect()->route('applications.wallet.redirect', $application);
+            }
+
             $application = $this->service->submit($application, $request->user());
         }
 
@@ -79,9 +94,54 @@ class ScholarshipController extends Controller
     public function submit(Request $request, ScholarshipApplication $application): RedirectResponse
     {
         $application = $this->applications->findVisible($application->id, $request->user());
+        if ($this->isVle($request)) {
+            $this->service->prepareWalletSubmission($application, $request->user());
+
+            return redirect()->route('applications.wallet.redirect', $application);
+        }
+
         $application = $this->service->submit($application, $request->user());
 
         return redirect()->route('applications.show', $application)->with('status', 'Scholarship application submitted.');
+    }
+
+    public function walletRedirect(Request $request, ScholarshipApplication $application): View
+    {
+        $application = $this->applications->findVisible($application->id, $request->user());
+        $transaction = $application->walletTransactions()
+            ->where('transaction_type', 'application_fee')
+            ->where('status', 'pending')
+            ->latest()
+            ->firstOrFail();
+
+        if (! $transaction instanceof ScholarshipWalletTransaction) {
+            abort(404);
+        }
+
+        $rawMetadata = $transaction->getRawOriginal('metadata');
+        $decodedMetadata = is_string($rawMetadata) ? json_decode($rawMetadata, true) : null;
+        $metadata = is_array($decodedMetadata) ? $decodedMetadata : [];
+
+        return view('scholarship.wallet.redirect', [
+            'application' => $application,
+            'transaction' => $transaction,
+            'gatewayUrl' => Arr::get($metadata, 'gateway_url'),
+            'message' => base64_encode(json_encode(Arr::get($metadata, 'request', []), JSON_THROW_ON_ERROR)),
+        ]);
+    }
+
+    public function walletCallback(Request $request, ScholarshipApplication $application): RedirectResponse
+    {
+        $application = $this->applications->findVisible($application->id, $request->user());
+        $response = $this->parseWalletResponse($request);
+
+        try {
+            $application = $this->service->completeWalletSubmission($application, $response, $request->user());
+        } catch (ValidationException $exception) {
+            return redirect()->route('applications.show', $application)->withErrors($exception->errors());
+        }
+
+        return redirect()->route('applications.show', $application)->with('status', 'Wallet payment completed and application submitted.');
     }
 
     private function formData(?ScholarshipApplication $application = null): array
@@ -137,5 +197,43 @@ class ScholarshipController extends Controller
             'tendupatta_collections.*.quantity_gaddi' => ['nullable', 'numeric', 'min:0'],
             'documents' => ['nullable', 'array'],
         ]);
+    }
+
+    private function isVle(Request $request): bool
+    {
+        return $request->session()->get('USER_TYPE') === 'VLE' || (int) $request->user()->user_type === (int) config('csc.vle_role_id');
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function parseWalletResponse(Request $request): array
+    {
+        if ($request->filled('mock_success')) {
+            return [
+                'txn_status' => 'Success',
+                'txn_status_message' => 'Success',
+                'merchant_txn' => (string) $request->input('merchant_txn'),
+                'csc_txn' => 'MOCK-'.now()->format('YmdHis'),
+            ];
+        }
+
+        $message = (string) $request->input('bridgeResponseMessage', $request->input('message', ''));
+        $decoded = base64_decode($message, true);
+        $raw = $decoded !== false ? $decoded : $message;
+        $json = json_decode($raw, true);
+        if (is_array($json)) {
+            return $json;
+        }
+
+        $response = [];
+        foreach (explode('|', $raw) as $part) {
+            [$key, $value] = array_pad(explode('=', $part, 2), 2, null);
+            if ($key !== '') {
+                $response[$key] = $value;
+            }
+        }
+
+        return $response;
     }
 }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Contracts\Services\CscConnectServiceInterface;
 use App\Models\User;
 use App\Support\LegacyPassword;
 use Illuminate\Http\RedirectResponse;
@@ -13,6 +14,8 @@ use Illuminate\View\View;
 
 final class AuthController extends Controller
 {
+    public function __construct(private readonly CscConnectServiceInterface $cscConnectService) {}
+
     public function showLogin(): View|RedirectResponse
     {
         if (Auth::check()) {
@@ -86,11 +89,28 @@ final class AuthController extends Controller
         return redirect()->route('dashboard');
     }
 
+    public function redirectToCsc(Request $request): RedirectResponse
+    {
+        return redirect()->away($this->cscConnectService->authorizationUrl($request));
+    }
+
+    public function cscCallback(Request $request): RedirectResponse
+    {
+        $user = $this->cscConnectService->authenticateCallback($request);
+
+        Auth::login($user);
+        $this->storeLegacySessionKeys($request, $user);
+        $request->session()->put('CSC_ID', $user->csc_id);
+        $request->session()->regenerate();
+
+        return redirect()->route('dashboard');
+    }
+
     public function logout(Request $request): RedirectResponse
     {
         Auth::logout();
 
-        $request->session()->forget(['USER_ID', 'NAME', 'EMAIL', 'USER_TYPE']);
+        $request->session()->forget(['USER_ID', 'NAME', 'EMAIL', 'USER_TYPE', 'CSC_ID', 'connect_state']);
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
@@ -103,7 +123,7 @@ final class AuthController extends Controller
             'USER_ID' => $user->id,
             'NAME' => $user->name,
             'EMAIL' => $user->email,
-            'USER_TYPE' => $user->user_type,
+            'USER_TYPE' => (int) $user->user_type === (int) config('csc.vle_role_id') ? 'VLE' : $user->user_type,
         ]);
     }
 

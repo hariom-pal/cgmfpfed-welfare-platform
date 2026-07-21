@@ -40,6 +40,19 @@ final class LegacyAuthSeeder extends Seeder
                         DB::table($table)->insert($records);
                     }
                 }
+
+                DB::table('user_type')->updateOrInsert(
+                    ['id' => (int) config('csc.vle_role_id')],
+                    ['type' => 'VLE'],
+                );
+
+                $nextId = ((int) DB::table('role_priviledge')->max('id')) + 1;
+                foreach ([5, 8, 9, 10, 16, 32, 33] as $permissionId) {
+                    DB::table('role_priviledge')->updateOrInsert(
+                        ['role_id' => (int) config('csc.vle_role_id'), 'permission_id' => $permissionId],
+                        ['id' => $nextId++],
+                    );
+                }
             });
         } finally {
             Schema::enableForeignKeyConstraints();

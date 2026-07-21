@@ -77,9 +77,31 @@ No live Aadhaar, DigiLocker, or Tendupatta API credentials/endpoints were availa
 
 This allows manual data entry and verification today while keeping the code API-ready.
 
-## Wallet Finding
+## CSC Connect Mapping
 
-The reviewed SQL dump and legacy source did not expose a dedicated wallet balance/debit table. Legacy payment gateway audit tables are preserved by the legacy importer. The Laravel module adds `scholarship_wallet_transactions` so submission/payment-related wallet events can be recorded without inventing balance behavior that was not present in the source package.
+The legacy source includes CSC Connect in `connect/User.php`, `connect/connect_success.php`, `connect/includes/connect_config.php`, and the CodeIgniter `User::connectLogin()` / `User::verifylogin()` methods. The migrated Laravel flow preserves the same authorization-code behavior:
+
+- Generate and store `connect_state`.
+- Redirect to CSC authorization endpoint with `response_type=code`, `client_id`, `redirect_uri`, and `state`.
+- Exchange callback `code` for an access token.
+- Fetch the CSC resource profile.
+- Create or update a VLE user, store legacy-compatible session keys, and redirect to the dashboard.
+
+Internal username/password login remains unchanged.
+
+## Wallet Mapping
+
+Legacy wallet behavior is implemented through CSC Bridge, not a local wallet balance table. The key legacy files are `connect/includes/BridgePG.php`, `connect/includes/BridgePGUtil.php`, `connect/includes/bridge_config.php`, `application/views/payment_navigate.php`, and the payment methods in `Scholarship.php` / `Applications.php`.
+
+The migrated flow preserves the business sequence:
+
+- VLE saves a draft application.
+- Submit validates documents/business rules.
+- A CSC wallet request is created for an application fee of `50.00`.
+- Duplicate pending/posted wallet deductions are prevented by reusing the existing application fee transaction.
+- Application final submission occurs only after a successful CSC wallet callback.
+- Failed or cancelled wallet callbacks are audited and do not submit the application.
+- The wallet transaction is linked to the application.
 
 ## Assumptions
 

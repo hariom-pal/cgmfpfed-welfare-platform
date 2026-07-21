@@ -23,6 +23,8 @@ class User extends Authenticatable
         'name',
         'email',
         'mobile',
+        'csc_id',
+        'csc_payload',
         'password',
         'status',
         'add_date',
@@ -92,6 +94,7 @@ class User extends Authenticatable
             'districtunion' => 'integer',
             'samiti' => 'integer',
             'fail_attempt' => 'integer',
+            'csc_payload' => 'array',
         ];
     }
 }

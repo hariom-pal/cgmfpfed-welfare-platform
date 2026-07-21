@@ -15,6 +15,8 @@ Route::get('/', fn () => redirect()->route('login'));
 
 Route::get('login', [AuthController::class, 'showLogin'])->name('login');
 Route::post('login', [AuthController::class, 'login'])->name('login.store');
+Route::get('csc/login', [AuthController::class, 'redirectToCsc'])->name('csc.login');
+Route::get('csc/callback', [AuthController::class, 'cscCallback'])->name('csc.callback');
 Route::post('legacy/checklogin', [AuthController::class, 'checkLogin'])->name('legacy.checklogin');
 Route::post('logout', [AuthController::class, 'logout'])->middleware('auth')->name('logout');
 
@@ -40,6 +42,8 @@ Route::middleware('auth')->group(function (): void {
         Route::get('applications/{application}/edit', [ScholarshipController::class, 'edit'])->name('applications.edit');
         Route::put('applications/{application}', [ScholarshipController::class, 'update'])->name('applications.update');
         Route::post('applications/{application}/submit', [ScholarshipController::class, 'submit'])->name('applications.submit');
+        Route::get('applications/{application}/wallet', [ScholarshipController::class, 'walletRedirect'])->name('applications.wallet.redirect');
+        Route::match(['get', 'post'], 'applications/{application}/wallet/callback', [ScholarshipController::class, 'walletCallback'])->name('applications.wallet.callback');
     });
 
     Route::middleware('permission:6,20,21,27,28,38')->group(function (): void {

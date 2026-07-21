@@ -22,6 +22,13 @@ interface ScholarshipServiceInterface
 
     public function submit(ScholarshipApplication $application, User $user): ScholarshipApplication;
 
+    public function prepareWalletSubmission(ScholarshipApplication $application, User $user): ScholarshipApplication;
+
+    /**
+     * @param  array<string, mixed>  $walletResponse
+     */
+    public function completeWalletSubmission(ScholarshipApplication $application, array $walletResponse, User $user): ScholarshipApplication;
+
     /**
      * @param  array<string, mixed>  $data
      */
