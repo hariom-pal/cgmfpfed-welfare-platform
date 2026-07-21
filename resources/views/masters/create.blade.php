@@ -2,12 +2,16 @@
 
 @section('title', 'Create '.$label)
 @section('heading', 'Create '.$label)
+@section('subtitle', 'Add a new '.$label.' master record')
+
+@php
+    $breadcrumbs = ['Master Management' => null, $label => route('masters.index', $masterKey), 'Create' => null];
+@endphp
 
 @section('content')
-    <x-breadcrumb :items="[$label => route('masters.index', $masterKey), 'Create' => null]" />
-    <div class="table-card p-4">
+    <x-card :title="'Create '.$label" icon="fa-solid fa-plus">
         <form method="POST" action="{{ route('masters.store', $masterKey) }}">
             @include('masters._form')
         </form>
-    </div>
+    </x-card>
 @endsection

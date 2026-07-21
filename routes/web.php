@@ -2,19 +2,14 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\ComingSoonController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\LocalAuthController;
 use App\Http\Controllers\MasterController;
 use App\Http\Middleware\EnsureLocalAdminAuthenticated;
 use Illuminate\Support\Facades\Route;
 
-Route::get('/', function () {
-    if (session()->get('local_admin_authenticated') === true) {
-        return redirect()->route('dashboard');
-    }
-
-    return view('auth.login');
-});
+Route::get('/', fn () => redirect()->route('login'));
 
 Route::get('login', [LocalAuthController::class, 'showLogin'])->name('login');
 Route::post('login', [LocalAuthController::class, 'login'])->name('login.store');
@@ -30,6 +25,8 @@ Route::middleware(EnsureLocalAdminAuthenticated::class)->group(function (): void
     Route::put('masters/{masterKey}/{uuid}', [MasterController::class, 'update'])->name('masters.update');
     Route::delete('masters/{masterKey}/{uuid}', [MasterController::class, 'destroy'])->name('masters.destroy');
     Route::patch('masters/{masterKey}/{uuid}/toggle', [MasterController::class, 'toggle'])->name('masters.toggle');
-    Route::view('reports', 'placeholder', ['title' => 'Reports'])->name('reports.index');
-    Route::view('settings', 'placeholder', ['title' => 'Settings'])->name('settings.index');
+    Route::get('applications', ComingSoonController::class)->defaults('module', 'applications')->name('applications.index');
+    Route::get('workflow', ComingSoonController::class)->defaults('module', 'workflow')->name('workflow.index');
+    Route::get('reports', ComingSoonController::class)->defaults('module', 'reports')->name('reports.index');
+    Route::get('settings', ComingSoonController::class)->defaults('module', 'settings')->name('settings.index');
 });

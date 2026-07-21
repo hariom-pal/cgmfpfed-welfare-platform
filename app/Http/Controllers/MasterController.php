@@ -43,7 +43,11 @@ final class MasterController extends Controller
         $data = $request->validated();
         $data['is_active'] = $request->boolean('is_active');
 
-        $context['service']->create($data);
+        $record = $context['service']->create($data);
+
+        if ($request->input('action') === 'continue') {
+            return redirect()->route('masters.create', $masterKey)->with('success', "{$context['label']} created. You can add another record.");
+        }
 
         return redirect()->route('masters.index', $masterKey)->with('success', "{$context['label']} created successfully.");
     }
@@ -69,7 +73,11 @@ final class MasterController extends Controller
         $data = $request->validated();
         $data['is_active'] = $request->boolean('is_active');
 
-        $context['service']->update($record, $data);
+        $updated = $context['service']->update($record, $data);
+
+        if ($request->input('action') === 'continue') {
+            return redirect()->route('masters.edit', [$masterKey, $updated->getAttribute('uuid')])->with('success', "{$context['label']} saved. Continue editing when needed.");
+        }
 
         return redirect()->route('masters.index', $masterKey)->with('success', "{$context['label']} updated successfully.");
     }

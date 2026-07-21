@@ -21,20 +21,20 @@ final class MasterSeeder extends Seeder
             'slug' => 'schemes',
             'seed' => [
                 0 => [
-                    0 => 'SCH-MERIT',
-                    1 => 'Award Scheme for Meritorious Students',
+                    0 => 'SCH-POST-MATRIC',
+                    1 => 'Post Matric Scholarship',
                 ],
                 1 => [
-                    0 => 'SCH-EDU-INC',
-                    1 => 'Education Proficiency Incentive Scheme',
+                    0 => 'SCH-MERIT',
+                    1 => 'Merit Scholarship',
                 ],
                 2 => [
-                    0 => 'SCH-PROF',
-                    1 => 'Scholarship Scheme for Professional Courses',
+                    0 => 'SCH-SPORTS',
+                    1 => 'Sports Scholarship',
                 ],
                 3 => [
-                    0 => 'SCH-NON-PROF',
-                    1 => 'Scholarship Scheme for Non-Professional Courses',
+                    0 => 'SCH-GIRL-CHILD',
+                    1 => 'Girl Child Scholarship',
                 ],
             ],
         ],
@@ -46,19 +46,23 @@ final class MasterSeeder extends Seeder
             'seed' => [
                 0 => [
                     0 => 'CRS-10',
-                    1 => 'Class 10',
+                    1 => '10th',
                 ],
                 1 => [
                     0 => 'CRS-12',
-                    1 => 'Class 12',
+                    1 => '12th',
                 ],
                 2 => [
-                    0 => 'CRS-BTECH',
-                    1 => 'B.Tech',
+                    0 => 'CRS-GRAD',
+                    1 => 'Graduation',
                 ],
                 3 => [
-                    0 => 'CRS-BA',
-                    1 => 'Bachelor of Arts',
+                    0 => 'CRS-ITI',
+                    1 => 'ITI',
+                ],
+                4 => [
+                    0 => 'CRS-DIPLOMA',
+                    1 => 'Diploma',
                 ],
             ],
         ],
@@ -69,20 +73,20 @@ final class MasterSeeder extends Seeder
             'slug' => 'categories',
             'seed' => [
                 0 => [
-                    0 => 'CAT-STUDENT',
-                    1 => 'Student',
+                    0 => 'CAT-GEN',
+                    1 => 'General',
                 ],
                 1 => [
-                    0 => 'CAT-NORMAL',
-                    1 => 'Normal',
+                    0 => 'CAT-OBC',
+                    1 => 'OBC',
                 ],
                 2 => [
-                    0 => 'CAT-PROF',
-                    1 => 'Professional',
+                    0 => 'CAT-SC',
+                    1 => 'SC',
                 ],
                 3 => [
-                    0 => 'CAT-NON-PROF',
-                    1 => 'Non-Professional',
+                    0 => 'CAT-ST',
+                    1 => 'ST',
                 ],
             ],
         ],
@@ -285,40 +289,40 @@ final class MasterSeeder extends Seeder
                     1 => 'Pending',
                 ],
                 1 => [
+                    0 => 'WF-APPROVED',
+                    1 => 'Approved',
+                ],
+                2 => [
+                    0 => 'WF-REJECTED',
+                    1 => 'Rejected',
+                ],
+                3 => [
+                    0 => 'WF-FORWARDED',
+                    1 => 'Forwarded',
+                ],
+                4 => [
+                    0 => 'WF-PAYMENT-PENDING',
+                    1 => 'Payment Pending',
+                ],
+                5 => [
+                    0 => 'WF-COMPLETED',
+                    1 => 'Completed',
+                ],
+                6 => [
                     0 => 'WF-SAMITI-APPROVED',
                     1 => 'Samiti Approved',
                 ],
-                2 => [
+                7 => [
                     0 => 'WF-SAMITI-REJECTED',
                     1 => 'Samiti Rejected',
                 ],
-                3 => [
-                    0 => 'WF-IC-APPROVED',
-                    1 => 'IC Approved',
-                ],
-                4 => [
-                    0 => 'WF-IC-REJECTED',
-                    1 => 'IC Rejected',
-                ],
-                5 => [
-                    0 => 'WF-DU-APPROVED',
-                    1 => 'District Union Approved',
-                ],
-                6 => [
-                    0 => 'WF-DU-REJECTED',
-                    1 => 'District Union Rejected',
-                ],
-                7 => [
+                8 => [
                     0 => 'WF-HQ-APPROVED',
                     1 => 'HQ Approved',
                 ],
-                8 => [
+                9 => [
                     0 => 'WF-HQ-REJECTED',
                     1 => 'HQ Rejected',
-                ],
-                9 => [
-                    0 => 'WF-FINANCE-PENDING',
-                    1 => 'Finance Pending',
                 ],
                 10 => [
                     0 => 'WF-PAYMENT-COMPLETED',

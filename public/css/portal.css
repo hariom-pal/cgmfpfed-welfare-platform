@@ -1,0 +1,146 @@
+:root {
+    --cgm-primary: #1d4ed8;
+    --cgm-success: #16803c;
+    --cgm-warning: #f59e0b;
+    --cgm-danger: #dc2626;
+    --cgm-sidebar: #172033;
+    --cgm-body: #f4f6fb;
+}
+
+body {
+    background: var(--cgm-body);
+    color: #111827;
+    font-family: "Inter", "Source Sans 3", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.app-wrapper, .content-wrapper {
+    background: var(--cgm-body);
+}
+
+.app-sidebar {
+    background: var(--cgm-sidebar);
+}
+
+.brand-link {
+    min-height: 64px;
+}
+
+.brand-image {
+    width: 40px;
+    height: 40px;
+    display: inline-grid;
+    place-items: center;
+    background: #fff;
+    color: var(--cgm-primary);
+    border-radius: 8px;
+}
+
+.nav-sidebar .nav-link {
+    border-radius: 7px;
+    color: #d1d5db;
+    margin-bottom: 2px;
+}
+
+.nav-sidebar .nav-link.active, .nav-sidebar .nav-link:hover {
+    background: var(--cgm-primary);
+    color: #fff;
+}
+
+.nav-sidebar .nav-treeview .nav-link {
+    padding-left: 2.25rem;
+}
+
+.app-card {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, .04);
+}
+
+.stat-card {
+    overflow: hidden;
+    position: relative;
+}
+
+.stat-card .icon {
+    font-size: 2.75rem;
+    opacity: .18;
+    position: absolute;
+    right: 1rem;
+    top: .85rem;
+}
+
+.required::after {
+    color: var(--cgm-danger);
+    content: " *";
+    font-weight: 700;
+}
+
+.empty-state {
+    padding: 3rem 1rem;
+    text-align: center;
+}
+
+.empty-state-icon {
+    width: 72px;
+    height: 72px;
+    display: inline-grid;
+    place-items: center;
+    border-radius: 50%;
+    background: #eaf2ff;
+    color: var(--cgm-primary);
+    font-size: 1.9rem;
+}
+
+.login-page {
+    min-height: 100vh;
+    background:
+        linear-gradient(135deg, rgba(29, 78, 216, .9), rgba(22, 128, 60, .82)),
+        radial-gradient(circle at top left, rgba(255, 255, 255, .22), transparent 34%),
+        #0f172a;
+}
+
+.login-card {
+    width: min(100%, 460px);
+    border-radius: 8px;
+}
+
+.login-emblem {
+    width: 64px;
+    height: 64px;
+    display: grid;
+    place-items: center;
+    border-radius: 10px;
+    background: #eaf2ff;
+    color: var(--cgm-primary);
+    font-size: 2rem;
+}
+
+.btn-icon {
+    width: 2rem;
+    height: 2rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.table thead th {
+    background: #f8fafc;
+    color: #475569;
+    font-size: .78rem;
+    letter-spacing: .02em;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.table td {
+    vertical-align: middle;
+}
+
+@media (max-width: 767.98px) {
+    .content-header .container-fluid,
+    .content .container-fluid {
+        padding-left: 1rem;
+        padding-right: 1rem;
+    }
+}

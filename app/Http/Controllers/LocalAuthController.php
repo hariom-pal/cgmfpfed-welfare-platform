@@ -20,6 +20,7 @@ final class LocalAuthController extends Controller
         $credentials = $request->validate([
             'username' => ['required', 'string'],
             'password' => ['required', 'string'],
+            'remember' => ['nullable', 'boolean'],
         ]);
 
         if ($credentials['username'] !== 'admin' || $credentials['password'] !== 'admin123') {
