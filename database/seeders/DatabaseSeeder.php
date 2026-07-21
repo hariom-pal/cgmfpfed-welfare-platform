@@ -17,9 +17,11 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         $this->call([
+            LegacyScholarshipDatabaseSeeder::class,
             LegacyAuthSeeder::class,
             AcademicSessionSeeder::class,
             MasterSeeder::class,
+            LegacyMasterDataSeeder::class,
         ]);
     }
 }
