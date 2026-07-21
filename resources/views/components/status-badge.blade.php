@@ -1,0 +1,1 @@
+<span class="badge {{ $active ? 'text-bg-success' : 'text-bg-secondary' }}">{{ $active ? 'Active' : 'Inactive' }}</span>

@@ -19,6 +19,20 @@ class AppServiceProvider extends ServiceProvider
             HealthCheckServiceInterface::class,
             HealthCheckService::class
         );
+
+        foreach (config('masters', []) as $master) {
+            $class = class_basename($master['model']);
+
+            $this->app->bind(
+                "App\\Contracts\\Repositories\\{$class}RepositoryInterface",
+                "App\\Repositories\\{$class}Repository",
+            );
+
+            $this->app->bind(
+                "App\\Contracts\\Services\\{$class}ServiceInterface",
+                "App\\Services\\{$class}Service",
+            );
+        }
     }
 
     /**
