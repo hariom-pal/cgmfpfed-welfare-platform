@@ -6,6 +6,9 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\ComingSoonController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\MasterController;
+use App\Http\Controllers\ScholarshipController;
+use App\Http\Controllers\ScholarshipReportController;
+use App\Http\Controllers\ScholarshipWorkflowController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', fn () => redirect()->route('login'));
@@ -29,8 +32,24 @@ Route::middleware('auth')->group(function (): void {
         Route::patch('masters/{masterKey}/{uuid}/toggle', [MasterController::class, 'toggle'])->name('masters.toggle');
     });
 
-    Route::get('applications', ComingSoonController::class)->middleware('permission:5,8,9,10,32,33')->defaults('module', 'applications')->name('applications.index');
-    Route::get('workflow', ComingSoonController::class)->middleware('permission:6,20,21,27,28,38')->defaults('module', 'workflow')->name('workflow.index');
-    Route::get('reports', ComingSoonController::class)->middleware('permission:16,34,39')->defaults('module', 'reports')->name('reports.index');
+    Route::middleware('permission:5,8,9,10,32,33')->group(function (): void {
+        Route::get('applications', [ScholarshipController::class, 'index'])->name('applications.index');
+        Route::get('applications/create', [ScholarshipController::class, 'create'])->name('applications.create');
+        Route::post('applications', [ScholarshipController::class, 'store'])->name('applications.store');
+        Route::get('applications/{application}', [ScholarshipController::class, 'show'])->name('applications.show');
+        Route::get('applications/{application}/edit', [ScholarshipController::class, 'edit'])->name('applications.edit');
+        Route::put('applications/{application}', [ScholarshipController::class, 'update'])->name('applications.update');
+        Route::post('applications/{application}/submit', [ScholarshipController::class, 'submit'])->name('applications.submit');
+    });
+
+    Route::middleware('permission:6,20,21,27,28,38')->group(function (): void {
+        Route::get('workflow', [ScholarshipWorkflowController::class, 'index'])->name('workflow.index');
+        Route::post('workflow/applications/{application}/action', [ScholarshipWorkflowController::class, 'action'])->name('workflow.action');
+        Route::post('workflow/ic-batches', [ScholarshipWorkflowController::class, 'icBatch'])->name('workflow.ic-batches.store');
+        Route::post('workflow/payment-batches', [ScholarshipWorkflowController::class, 'paymentBatch'])->name('workflow.payment-batches.store');
+        Route::post('workflow/applications/{application}/payment-result', [ScholarshipWorkflowController::class, 'paymentResult'])->name('workflow.payment-result');
+    });
+
+    Route::get('reports', [ScholarshipReportController::class, 'index'])->middleware('permission:16,34,39')->name('reports.index');
     Route::get('settings', ComingSoonController::class)->middleware('permission:1,2,4')->defaults('module', 'settings')->name('settings.index');
 });

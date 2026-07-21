@@ -37,8 +37,8 @@ final class MasterManagementTest extends TestCase
         $this->actingAsMasterManager();
 
         $this->get(route('dashboard'))->assertOk()->assertSee('Operational overview');
-        $this->get(route('applications.index'))->assertOk()->assertSee('Applications Module');
-        $this->get(route('workflow.index'))->assertOk()->assertSee('Workflow Module');
+        $this->get(route('applications.index'))->assertOk()->assertSee('Scholarship Applications');
+        $this->get(route('workflow.index'))->assertOk()->assertSee('Scholarship Workflow');
 
         foreach (array_keys(config('masters')) as $masterKey) {
             $this->get(route('masters.index', $masterKey))->assertOk();
@@ -67,6 +67,7 @@ final class MasterManagementTest extends TestCase
             ['id' => 9001, 'role_id' => 1, 'permission_id' => 35],
             ['id' => 9002, 'role_id' => 1, 'permission_id' => 5],
             ['id' => 9003, 'role_id' => 1, 'permission_id' => 6],
+            ['id' => 9004, 'role_id' => 1, 'permission_id' => 16],
         ]);
 
         $this->actingAs($user);

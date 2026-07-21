@@ -4,8 +4,18 @@ declare(strict_types=1);
 
 namespace App\Providers;
 
+use App\Contracts\Services\AadhaarServiceInterface;
+use App\Contracts\Services\DigiLockerServiceInterface;
 use App\Contracts\Services\HealthCheckServiceInterface;
+use App\Contracts\Services\TendupattaServiceInterface;
+use App\Domains\Scholarship\Contracts\ScholarshipRepositoryInterface;
+use App\Domains\Scholarship\Contracts\ScholarshipServiceInterface;
+use App\Domains\Scholarship\Repositories\ScholarshipRepository;
+use App\Domains\Scholarship\Services\ScholarshipService;
 use App\Services\HealthCheckService;
+use App\Services\MockAadhaarService;
+use App\Services\MockDigiLockerService;
+use App\Services\MockTendupattaService;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -19,6 +29,12 @@ class AppServiceProvider extends ServiceProvider
             HealthCheckServiceInterface::class,
             HealthCheckService::class
         );
+
+        $this->app->bind(AadhaarServiceInterface::class, MockAadhaarService::class);
+        $this->app->bind(DigiLockerServiceInterface::class, MockDigiLockerService::class);
+        $this->app->bind(TendupattaServiceInterface::class, MockTendupattaService::class);
+        $this->app->bind(ScholarshipRepositoryInterface::class, ScholarshipRepository::class);
+        $this->app->bind(ScholarshipServiceInterface::class, ScholarshipService::class);
 
         foreach (config('masters', []) as $master) {
             $class = class_basename($master['model']);

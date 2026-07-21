@@ -48,7 +48,7 @@
                 <li class="nav-item">
                     <a href="{{ route('applications.index') }}" @class(['nav-link', 'active' => request()->routeIs('applications.*')])>
                         <i class="nav-icon fa-regular fa-file-lines"></i>
-                        <p>Applications <span class="badge text-bg-secondary ms-1">Soon</span></p>
+                        <p>Applications</p>
                     </a>
                 </li>
                 @endif
@@ -56,7 +56,7 @@
                 <li class="nav-item">
                     <a href="{{ route('workflow.index') }}" @class(['nav-link', 'active' => request()->routeIs('workflow.*')])>
                         <i class="nav-icon fa-solid fa-route"></i>
-                        <p>Workflow <span class="badge text-bg-secondary ms-1">Soon</span></p>
+                        <p>Workflow</p>
                     </a>
                 </li>
                 @endif
@@ -64,7 +64,7 @@
                 <li class="nav-item">
                     <a href="{{ route('reports.index') }}" @class(['nav-link', 'active' => request()->routeIs('reports.*')])>
                         <i class="nav-icon fa-solid fa-chart-column"></i>
-                        <p>Reports <span class="badge text-bg-secondary ms-1">Soon</span></p>
+                        <p>Reports</p>
                     </a>
                 </li>
                 @endif

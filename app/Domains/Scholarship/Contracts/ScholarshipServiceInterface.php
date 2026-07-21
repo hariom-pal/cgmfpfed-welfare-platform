@@ -4,35 +4,40 @@ declare(strict_types=1);
 
 namespace App\Domains\Scholarship\Contracts;
 
+use App\Models\ScholarshipApplication;
+use App\Models\ScholarshipWorkflowBatch;
+use App\Models\User;
+
 interface ScholarshipServiceInterface
 {
     /**
-     * Submit a new scholarship application.
+     * @param  array<string, mixed>  $data
      */
-    public function submit(): void;
+    public function createDraft(array $data, User $user): ScholarshipApplication;
 
     /**
-     * Update an existing scholarship application.
+     * @param  array<string, mixed>  $data
      */
-    public function update(): void;
+    public function updateDraft(ScholarshipApplication $application, array $data, User $user): ScholarshipApplication;
+
+    public function submit(ScholarshipApplication $application, User $user): ScholarshipApplication;
 
     /**
-     * Verify a scholarship application.
+     * @param  array<string, mixed>  $data
      */
-    public function verify(): void;
+    public function resubmit(ScholarshipApplication $application, array $data, User $user): ScholarshipApplication;
+
+    public function transition(ScholarshipApplication $application, string $action, ?string $remarks, User $user): ScholarshipApplication;
 
     /**
-     * Approve a scholarship application.
+     * @param  array<int, int>  $applicationIds
      */
-    public function approve(): void;
+    public function createIcBatch(array $applicationIds, User $user, ?string $momFilePath = null, ?string $remarks = null): ScholarshipWorkflowBatch;
 
     /**
-     * Reject a scholarship application.
+     * @param  array<int, int>  $applicationIds
      */
-    public function reject(): void;
+    public function createPaymentBatch(array $applicationIds, User $user, ?string $remarks = null): ScholarshipWorkflowBatch;
 
-    /**
-     * Resubmit a rejected scholarship application.
-     */
-    public function resubmit(): void;
+    public function recordPaymentResult(ScholarshipApplication $application, bool $success, ?string $reference, ?string $failureReason, User $user): ScholarshipApplication;
 }

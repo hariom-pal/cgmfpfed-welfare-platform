@@ -1,0 +1,42 @@
+@extends('layouts.admin')
+
+@section('title', 'Scholarship Reports')
+@section('heading', 'Scholarship Reports')
+@section('subtitle', 'Application, approval, and payment summaries')
+
+@php($breadcrumbs = ['Reports' => null])
+
+@section('content')
+    <div class="row g-3 mb-3">
+        @foreach([['Applications', $totals['applications']], ['Submitted', $totals['submitted']], ['Sanctioned', '₹'.number_format((float) $totals['amount'], 2)], ['Paid', '₹'.number_format((float) $totals['paid'], 2)]] as [$label, $value])
+            <div class="col-md-3"><x-card><div class="text-muted small">{{ $label }}</div><div class="fs-4 fw-semibold">{{ $value }}</div></x-card></div>
+        @endforeach
+    </div>
+
+    <x-card title="Status Summary" icon="fa-solid fa-chart-column" class="mb-3">
+        <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+                <thead><tr><th>Status</th><th class="text-end">Applications</th></tr></thead>
+                <tbody>
+                @foreach($byStatus as $row)
+                    <tr><td>{{ $row->status_label }}</td><td class="text-end">{{ $row->aggregate }}</td></tr>
+                @endforeach
+                </tbody>
+            </table>
+        </div>
+    </x-card>
+
+    <x-card title="Application Register" icon="fa-regular fa-file-lines">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead><tr><th>Application</th><th>Student</th><th>Status</th><th class="text-end">Amount</th></tr></thead>
+                <tbody>
+                @foreach($applications as $application)
+                    <tr><td>{{ $application->application_number ?? 'Draft #'.$application->id }}</td><td>{{ $application->student_name }}</td><td>{{ $application->status_label }}</td><td class="text-end">₹{{ number_format((float) $application->amount, 2) }}</td></tr>
+                @endforeach
+                </tbody>
+            </table>
+        </div>
+        <div class="pt-3"><x-pagination :records="$applications" /></div>
+    </x-card>
+@endsection

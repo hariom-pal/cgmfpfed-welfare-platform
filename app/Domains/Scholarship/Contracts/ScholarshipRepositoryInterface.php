@@ -4,25 +4,29 @@ declare(strict_types=1);
 
 namespace App\Domains\Scholarship\Contracts;
 
+use App\Models\ScholarshipApplication;
+use App\Models\User;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\Eloquent\Builder;
+
 interface ScholarshipRepositoryInterface
 {
-    /**
-     * Persist a scholarship application.
-     */
-    public function save(): void;
+    public function queryVisibleFor(User $user): Builder;
 
     /**
-     * Find a scholarship application by its ID.
+     * @param  array<string, mixed>  $filters
      */
-    public function findById(int $id): mixed;
+    public function paginateFor(User $user, array $filters = [], int $perPage = 15): LengthAwarePaginator;
+
+    public function findVisible(int $id, User $user): ScholarshipApplication;
 
     /**
-     * Update an existing scholarship application.
+     * @param  array<string, mixed>  $data
      */
-    public function update(): void;
+    public function create(array $data): ScholarshipApplication;
 
     /**
-     * Delete a scholarship application.
+     * @param  array<string, mixed>  $data
      */
-    public function delete(): void;
+    public function update(ScholarshipApplication $application, array $data): ScholarshipApplication;
 }
