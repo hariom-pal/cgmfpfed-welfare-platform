@@ -14,9 +14,19 @@ return new class extends Migration
         Schema::create('users', function (Blueprint $table) {
             $table->id();
             $table->string('name');
-            $table->string('email')->unique();
+            $table->string('email')->nullable()->index();
+            $table->string('mobile')->nullable()->index();
             $table->timestamp('email_verified_at')->nullable();
             $table->string('password');
+            $table->enum('status', ['0', '1', '2'])->default('1')->index();
+            $table->dateTime('add_date')->nullable();
+            $table->unsignedInteger('user_type')->nullable()->index();
+            $table->unsignedInteger('district')->nullable()->index();
+            $table->unsignedInteger('circle')->nullable()->index();
+            $table->unsignedInteger('districtunion')->nullable()->index();
+            $table->unsignedInteger('samiti')->nullable()->index();
+            $table->string('reset_code')->nullable();
+            $table->unsignedInteger('fail_attempt')->default(0);
             $table->rememberToken();
             $table->timestamps();
         });

@@ -27,15 +27,16 @@
                     <span class="position-absolute top-25 start-75 translate-middle badge rounded-pill text-bg-warning">0</span>
                 </button>
             </li>
+            @php($user = auth()->user())
             <li class="nav-item dropdown">
                 <a class="nav-link dropdown-toggle d-flex align-items-center gap-2" data-bs-toggle="dropdown" href="#">
-                    <span class="badge rounded-pill text-bg-primary">A</span>
-                    <span class="d-none d-sm-inline">admin</span>
+                    <span class="badge rounded-pill text-bg-primary">{{ strtoupper(substr((string) $user?->name, 0, 1)) }}</span>
+                    <span class="d-none d-sm-inline">{{ $user?->name }}</span>
                 </a>
                 <div class="dropdown-menu dropdown-menu-end">
                     <span class="dropdown-item-text">
-                        <span class="fw-semibold d-block">Administrator</span>
-                        <span class="small text-muted">Local Admin</span>
+                        <span class="fw-semibold d-block">{{ $user?->email ?? $user?->mobile }}</span>
+                        <span class="small text-muted">{{ $user?->role?->type ?? 'Unmapped role '.$user?->user_type }}</span>
                     </span>
                     <div class="dropdown-divider"></div>
                     <form method="POST" action="{{ route('logout') }}">

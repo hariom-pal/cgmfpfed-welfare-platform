@@ -18,11 +18,11 @@
             <div class="login-emblem mx-auto mb-3"><i class="fa-solid fa-landmark"></i></div>
             <div class="small text-uppercase text-primary fw-semibold">Government Enterprise Portal</div>
             <h1 class="h4 mb-1">CGMFPFED Welfare Platform</h1>
-            <p class="text-muted mb-0">Temporary Admin Login</p>
+            <p class="text-muted mb-0">Legacy User Login</p>
         </div>
         <x-alert />
         <div class="mb-3">
-            <label for="username" class="form-label required">Username</label>
+            <label for="username" class="form-label required">Email or Mobile</label>
             <div class="input-group">
                 <span class="input-group-text"><i class="bi bi-person-badge"></i></span>
                 <input id="username" name="username" class="form-control @error('username') is-invalid @enderror" value="{{ old('username') }}" autofocus required>

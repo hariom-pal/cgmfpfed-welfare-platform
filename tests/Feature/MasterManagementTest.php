@@ -6,7 +6,9 @@ namespace Tests\Feature;
 
 use App\Models\DocumentType;
 use App\Models\Scheme;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 final class MasterManagementTest extends TestCase
@@ -15,10 +17,7 @@ final class MasterManagementTest extends TestCase
 
     public function test_local_admin_can_manage_a_master_record(): void
     {
-        $this->post(route('login.store'), [
-            'username' => 'admin',
-            'password' => 'admin123',
-        ])->assertRedirect(route('dashboard'));
+        $this->actingAsMasterManager();
 
         $this->post(route('masters.store', 'courses'), [
             'code' => 'CRS-TEST',
@@ -35,7 +34,7 @@ final class MasterManagementTest extends TestCase
 
     public function test_enterprise_portal_pages_open_after_login(): void
     {
-        $this->withSession(['local_admin_authenticated' => true]);
+        $this->actingAsMasterManager();
 
         $this->get(route('dashboard'))->assertOk()->assertSee('Operational overview');
         $this->get(route('applications.index'))->assertOk()->assertSee('Applications Module');
@@ -55,5 +54,23 @@ final class MasterManagementTest extends TestCase
         $scheme->documentTypes()->attach($documentType);
 
         $this->assertTrue($scheme->fresh()->documentTypes->contains($documentType));
+    }
+
+    private function actingAsMasterManager(): User
+    {
+        $user = User::factory()->create([
+            'status' => '1',
+            'user_type' => 1,
+        ]);
+
+        DB::table('role_priviledge')->insert([
+            ['id' => 9001, 'role_id' => 1, 'permission_id' => 35],
+            ['id' => 9002, 'role_id' => 1, 'permission_id' => 5],
+            ['id' => 9003, 'role_id' => 1, 'permission_id' => 6],
+        ]);
+
+        $this->actingAs($user);
+
+        return $user;
     }
 }
