@@ -71,7 +71,6 @@ return new class extends Migration
             $table->timestamps();
             $table->softDeletes();
 
-            $table->unique(['student_aadhaar', 'academic_session_id'], 'sch_app_student_session_unique');
             $table->index(['scheme_id', 'academic_session_id']);
             $table->index(['current_stage', 'status']);
         });

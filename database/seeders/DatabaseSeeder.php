@@ -22,6 +22,7 @@ class DatabaseSeeder extends Seeder
             AcademicSessionSeeder::class,
             MasterSeeder::class,
             LegacyMasterDataSeeder::class,
+            CompleteLegacyDataMigrationSeeder::class,
         ]);
     }
 }

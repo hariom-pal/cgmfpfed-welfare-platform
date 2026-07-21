@@ -519,7 +519,7 @@ final class ScholarshipService extends BaseService implements ScholarshipService
                 'transaction_type' => $type,
                 'amount' => $amount,
                 'status' => 'posted',
-                'metadata' => ['legacy_wallet_table_found' => false],
+                'metadata' => ['source_wallet_import_found' => false],
             ],
         );
     }

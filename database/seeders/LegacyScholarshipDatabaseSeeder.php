@@ -23,6 +23,24 @@ final class LegacyScholarshipDatabaseSeeder extends Seeder
         try {
             Schema::disableForeignKeyConstraints();
 
+            $createdTables = [];
+            foreach (LegacyScholarshipSql::createStatements($sql) as $statement) {
+                $table = LegacyScholarshipSql::sourceTableName($statement);
+
+                if ($table !== null && ! Schema::hasTable($prefix.$table)) {
+                    DB::unprepared(LegacyScholarshipSql::prefixedStatement($statement));
+                    $createdTables[$table] = true;
+                }
+            }
+
+            foreach (LegacyScholarshipSql::alterStatements($sql) as $statement) {
+                $table = LegacyScholarshipSql::sourceTableName($statement);
+
+                if ($table !== null && isset($createdTables[$table])) {
+                    DB::unprepared(LegacyScholarshipSql::prefixedStatement($statement));
+                }
+            }
+
             foreach (LegacyScholarshipSql::tableNames($sql) as $table) {
                 DB::table($prefix.$table)->truncate();
             }

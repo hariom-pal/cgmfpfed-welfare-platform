@@ -113,7 +113,7 @@ final class LegacyScholarshipSql
 
     public static function sourceTableName(string $statement): ?string
     {
-        if (preg_match('/(?:CREATE TABLE|INSERT INTO) `([^`]+)`/i', $statement, $matches) !== 1) {
+        if (preg_match('/(?:CREATE TABLE|INSERT INTO|ALTER TABLE) `([^`]+)`/i', $statement, $matches) !== 1) {
             return null;
         }
 

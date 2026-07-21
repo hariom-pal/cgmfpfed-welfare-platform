@@ -12,13 +12,13 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 #[Signature('legacy:verify-migration')]
-#[Description('Compare legacy Scholarship SQL row counts with imported legacy mirror tables')]
+#[Description('Verify Scholarship SQL source rows are archived and temporary import tables are removed')]
 final class VerifyLegacyMigration extends Command
 {
     public function handle(): int
     {
         if (DB::connection()->getDriverName() !== 'mysql') {
-            $this->warn('Legacy row-count verification is only available on the MySQL import database.');
+            $this->warn('Migration verification is only available on the MySQL import database.');
 
             return self::SUCCESS;
         }
@@ -34,26 +34,37 @@ final class VerifyLegacyMigration extends Command
             }
         }
 
-        $prefix = (string) config('legacy_database.table_prefix', 'legacy_');
         $rows = [];
         $failed = false;
 
         foreach ($expected as $table => $expectedCount) {
-            $mirrorTable = $prefix.$table;
-            $actualCount = Schema::hasTable($mirrorTable) ? DB::table($mirrorTable)->count() : null;
-            $matches = $actualCount === $expectedCount;
+            $archivedCount = Schema::hasTable('source_data_archives')
+                ? DB::table('source_data_archives')->where('source_table', $table)->count()
+                : null;
+            $matches = $archivedCount === $expectedCount;
             $failed = $failed || ! $matches;
 
             $rows[] = [
                 $table,
-                $mirrorTable,
                 $expectedCount,
-                $actualCount ?? 'missing',
+                $archivedCount ?? 'missing',
                 $matches ? 'OK' : 'MISMATCH',
             ];
         }
 
-        $this->table(['Source table', 'Mirror table', 'SQL rows', 'Imported rows', 'Status'], $rows);
+        $temporaryImportTables = DB::table('information_schema.tables')
+            ->where('table_schema', DB::raw('DATABASE()'))
+            ->where('table_name', 'like', 'legacy\_%')
+            ->count();
+
+        if ($temporaryImportTables > 0) {
+            $failed = true;
+            $this->error("Temporary import tables remaining: {$temporaryImportTables}");
+        } else {
+            $this->info('Temporary import tables remaining: 0');
+        }
+
+        $this->table(['Source table', 'SQL rows', 'Archived rows', 'Status'], $rows);
 
         return $failed ? self::FAILURE : self::SUCCESS;
     }
