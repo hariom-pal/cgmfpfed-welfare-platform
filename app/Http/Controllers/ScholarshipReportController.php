@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Domains\Scholarship\Contracts\ScholarshipRepositoryInterface;
-use App\Models\ScholarshipApplication;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
@@ -17,6 +16,7 @@ class ScholarshipReportController extends Controller
     public function index(Request $request): View
     {
         $visible = $this->applications->queryVisibleFor($request->user());
+        $statusVisible = $this->applications->queryVisibleFor($request->user());
 
         return view('scholarship.reports.index', [
             'applications' => $this->applications->paginateFor($request->user(), $request->query(), 20),
@@ -26,7 +26,7 @@ class ScholarshipReportController extends Controller
                 'amount' => (clone $visible)->sum('amount'),
                 'paid' => (clone $visible)->where('payment_status', 'success')->sum('amount'),
             ],
-            'byStatus' => ScholarshipApplication::query()
+            'byStatus' => $statusVisible
                 ->select('status_label', DB::raw('count(*) as aggregate'))
                 ->groupBy('status_label')
                 ->orderByDesc('aggregate')

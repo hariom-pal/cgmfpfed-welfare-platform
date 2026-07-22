@@ -3,6 +3,8 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Services\PermissionService;
+use App\Services\RoleService;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -52,14 +54,7 @@ class User extends Authenticatable
      */
     public function hasPermission($permission): bool
     {
-        if ($this->user_type === null) {
-            return false;
-        }
-
-        return RolePriviledge::query()
-            ->where('role_id', $this->user_type)
-            ->where('permission_id', (int) $permission)
-            ->exists();
+        return app(PermissionService::class)->has($this, $permission);
     }
 
     /**
@@ -67,15 +62,17 @@ class User extends Authenticatable
      */
     public function hasAnyPermission(iterable|int|string $permissions): bool
     {
-        $permissionIds = is_iterable($permissions) ? $permissions : [$permissions];
+        return app(PermissionService::class)->hasAny($this, $permissions);
+    }
 
-        foreach ($permissionIds as $permission) {
-            if ($this->hasPermission($permission)) {
-                return true;
-            }
-        }
+    public function canLegacy(string $ability): bool
+    {
+        return app(PermissionService::class)->can($this, $ability);
+    }
 
-        return false;
+    public function isVle(): bool
+    {
+        return app(RoleService::class)->isVle($this);
     }
 
     /**

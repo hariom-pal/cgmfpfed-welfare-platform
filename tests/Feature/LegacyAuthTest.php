@@ -79,7 +79,7 @@ final class LegacyAuthTest extends TestCase
         $this->get(route('dashboard'))
             ->assertOk()
             ->assertSee('Reports')
-            ->assertSee('Workflow')
+            ->assertSee('Batches')
             ->assertDontSee('Master Management');
     }
 

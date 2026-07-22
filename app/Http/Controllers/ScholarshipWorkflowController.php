@@ -10,6 +10,7 @@ use App\Models\ScholarshipApplication;
 use App\Models\ScholarshipWorkflowBatch;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\View\View;
 
 class ScholarshipWorkflowController extends Controller
@@ -21,6 +22,8 @@ class ScholarshipWorkflowController extends Controller
 
     public function index(Request $request): View
     {
+        Gate::authorize('workflow.view');
+
         return view('scholarship.workflow.index', [
             'applications' => $this->applications->paginateFor($request->user(), $request->query(), 20),
             'batches' => ScholarshipWorkflowBatch::query()->latest()->limit(10)->get(),
@@ -29,6 +32,8 @@ class ScholarshipWorkflowController extends Controller
 
     public function action(Request $request, ScholarshipApplication $application): RedirectResponse
     {
+        Gate::authorize('workflow.action');
+        Gate::authorize('view', $application);
         $application = $this->applications->findVisible($application->id, $request->user());
         $data = $request->validate([
             'action' => ['required', 'in:recommend,return,reject'],
@@ -53,6 +58,8 @@ class ScholarshipWorkflowController extends Controller
 
     public function icBatch(Request $request): RedirectResponse
     {
+        Gate::authorize('workflow.action');
+
         $data = $request->validate([
             'application_ids' => ['required', 'array', 'min:1'],
             'application_ids.*' => ['integer', 'exists:scholarship_applications,id'],
@@ -67,6 +74,8 @@ class ScholarshipWorkflowController extends Controller
 
     public function paymentBatch(Request $request): RedirectResponse
     {
+        Gate::authorize('workflow.action');
+
         $data = $request->validate([
             'application_ids' => ['required', 'array', 'min:1'],
             'application_ids.*' => ['integer', 'exists:scholarship_applications,id'],
@@ -80,6 +89,8 @@ class ScholarshipWorkflowController extends Controller
 
     public function paymentResult(Request $request, ScholarshipApplication $application): RedirectResponse
     {
+        Gate::authorize('workflow.action');
+        Gate::authorize('view', $application);
         $application = $this->applications->findVisible($application->id, $request->user());
         $data = $request->validate([
             'success' => ['required', 'boolean'],

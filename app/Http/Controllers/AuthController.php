@@ -6,6 +6,7 @@ namespace App\Http\Controllers;
 
 use App\Contracts\Services\CscConnectServiceInterface;
 use App\Models\User;
+use App\Services\SessionService;
 use App\Support\LegacyPassword;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -14,7 +15,10 @@ use Illuminate\View\View;
 
 final class AuthController extends Controller
 {
-    public function __construct(private readonly CscConnectServiceInterface $cscConnectService) {}
+    public function __construct(
+        private readonly CscConnectServiceInterface $cscConnectService,
+        private readonly SessionService $sessions,
+    ) {}
 
     public function showLogin(): View|RedirectResponse
     {
@@ -55,7 +59,7 @@ final class AuthController extends Controller
         $user->forceFill(['fail_attempt' => 0])->save();
 
         Auth::login($user, (bool) ($credentials['remember'] ?? false));
-        $this->storeLegacySessionKeys($request, $user);
+        $this->sessions->storeLegacyKeys($request, $user);
         $request->session()->regenerate();
 
         return redirect()->intended(route('dashboard'));
@@ -83,7 +87,7 @@ final class AuthController extends Controller
         }
 
         Auth::login($user);
-        $this->storeLegacySessionKeys($request, $user);
+        $this->sessions->storeLegacyKeys($request, $user);
         $request->session()->regenerate();
 
         return redirect()->route('dashboard');
@@ -99,8 +103,7 @@ final class AuthController extends Controller
         $user = $this->cscConnectService->authenticateCallback($request);
 
         Auth::login($user);
-        $this->storeLegacySessionKeys($request, $user);
-        $request->session()->put('CSC_ID', $user->csc_id);
+        $this->sessions->storeLegacyKeys($request, $user);
         $request->session()->regenerate();
 
         return redirect()->route('dashboard');
@@ -110,21 +113,11 @@ final class AuthController extends Controller
     {
         Auth::logout();
 
-        $request->session()->forget(['USER_ID', 'NAME', 'EMAIL', 'USER_TYPE', 'CSC_ID', 'connect_state']);
+        $this->sessions->clearLegacyKeys($request);
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
         return redirect()->route('login')->with('status', 'Signed out successfully.');
-    }
-
-    private function storeLegacySessionKeys(Request $request, User $user): void
-    {
-        $request->session()->put([
-            'USER_ID' => $user->id,
-            'NAME' => $user->name,
-            'EMAIL' => $user->email,
-            'USER_TYPE' => (int) $user->user_type === (int) config('csc.vle_role_id') ? 'VLE' : $user->user_type,
-        ]);
     }
 
     /**

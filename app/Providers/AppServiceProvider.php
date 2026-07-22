@@ -14,12 +14,18 @@ use App\Domains\Scholarship\Contracts\ScholarshipRepositoryInterface;
 use App\Domains\Scholarship\Contracts\ScholarshipServiceInterface;
 use App\Domains\Scholarship\Repositories\ScholarshipRepository;
 use App\Domains\Scholarship\Services\ScholarshipService;
+use App\Models\ScholarshipApplication;
+use App\Policies\ScholarshipApplicationPolicy;
 use App\Services\CscBridgeWalletService;
 use App\Services\CscConnectService;
 use App\Services\HealthCheckService;
+use App\Services\MenuBuilder;
 use App\Services\MockAadhaarService;
 use App\Services\MockDigiLockerService;
 use App\Services\MockTendupattaService;
+use App\Services\PermissionService;
+use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -62,6 +68,14 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        //
+        Gate::policy(ScholarshipApplication::class, ScholarshipApplicationPolicy::class);
+
+        foreach (array_keys(config('legacy_authorization.abilities', [])) as $ability) {
+            Gate::define($ability, fn ($user): bool => app(PermissionService::class)->can($user, (string) $ability));
+        }
+
+        View::composer('components.sidebar', function ($view): void {
+            $view->with('menuItems', app(MenuBuilder::class)->buildFor(auth()->user()));
+        });
     }
 }

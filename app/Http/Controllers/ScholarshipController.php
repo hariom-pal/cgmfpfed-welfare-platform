@@ -10,11 +10,13 @@ use App\Models\AcademicSession;
 use App\Models\Scheme;
 use App\Models\ScholarshipApplication;
 use App\Models\ScholarshipWalletTransaction;
+use App\Services\RoleService;
 use App\Services\ScholarshipViewModelService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
@@ -24,10 +26,13 @@ class ScholarshipController extends Controller
         private readonly ScholarshipRepositoryInterface $applications,
         private readonly ScholarshipServiceInterface $service,
         private readonly ScholarshipViewModelService $viewModels,
+        private readonly RoleService $roles,
     ) {}
 
     public function index(Request $request): View
     {
+        Gate::authorize('viewAny', ScholarshipApplication::class);
+
         $filters = $this->applicationFilters($request);
 
         if (! isset($filters['scheme_id'])) {
@@ -46,11 +51,14 @@ class ScholarshipController extends Controller
 
     public function create(): View
     {
+        Gate::authorize('create', ScholarshipApplication::class);
+
         return view('scholarship.select_scheme', $this->viewModels->schemeSelection('create'));
     }
 
     public function createForScheme(Scheme $scheme): View
     {
+        Gate::authorize('create', ScholarshipApplication::class);
         abort_unless($scheme->is_active, 404);
 
         return view('scholarship.form', $this->formData(null, $scheme));
@@ -58,6 +66,8 @@ class ScholarshipController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
+        Gate::authorize('create', ScholarshipApplication::class);
+
         $application = $this->service->createDraft($this->payload($request), $request->user());
 
         if ($request->input('intent') === 'submit') {
@@ -76,6 +86,7 @@ class ScholarshipController extends Controller
     public function show(Request $request, ScholarshipApplication $application): View
     {
         $application = $this->applications->findVisible($application->id, $request->user());
+        Gate::authorize('view', $application);
 
         $application->load([
             'academicSession',
@@ -97,6 +108,7 @@ class ScholarshipController extends Controller
     public function edit(Request $request, ScholarshipApplication $application): View
     {
         $application = $this->applications->findVisible($application->id, $request->user());
+        Gate::authorize('update', $application);
 
         return view('scholarship.form', $this->formData($application));
     }
@@ -104,6 +116,7 @@ class ScholarshipController extends Controller
     public function update(Request $request, ScholarshipApplication $application): RedirectResponse
     {
         $application = $this->applications->findVisible($application->id, $request->user());
+        Gate::authorize('update', $application);
         $application = $application->is_draft
             ? $this->service->updateDraft($application, $this->payload($request), $request->user())
             : $this->service->resubmit($application, $this->payload($request), $request->user());
@@ -124,6 +137,7 @@ class ScholarshipController extends Controller
     public function submit(Request $request, ScholarshipApplication $application): RedirectResponse
     {
         $application = $this->applications->findVisible($application->id, $request->user());
+        Gate::authorize('submit', $application);
         if ($this->isVle($request)) {
             $this->service->prepareWalletSubmission($application, $request->user());
 
@@ -138,6 +152,7 @@ class ScholarshipController extends Controller
     public function walletRedirect(Request $request, ScholarshipApplication $application): View
     {
         $application = $this->applications->findVisible($application->id, $request->user());
+        Gate::authorize('submit', $application);
         $transaction = $application->walletTransactions()
             ->where('transaction_type', 'application_fee')
             ->where('status', 'pending')
@@ -163,6 +178,7 @@ class ScholarshipController extends Controller
     public function walletCallback(Request $request, ScholarshipApplication $application): RedirectResponse
     {
         $application = $this->applications->findVisible($application->id, $request->user());
+        Gate::authorize('submit', $application);
         $response = $this->parseWalletResponse($request);
 
         try {
@@ -279,7 +295,7 @@ class ScholarshipController extends Controller
 
     private function isVle(Request $request): bool
     {
-        return $request->session()->get('USER_TYPE') === 'VLE' || (int) $request->user()->user_type === (int) config('csc.vle_role_id');
+        return $this->roles->isVle($request->user());
     }
 
     /**
