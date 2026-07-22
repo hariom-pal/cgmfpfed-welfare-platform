@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Services;
 
-use App\Domains\Scholarship\Enums\ScholarshipApplicationStatus;
 use App\Models\ScholarshipApplication;
 use Illuminate\Database\Eloquent\Builder;
 
@@ -33,15 +32,14 @@ final class ApplicationCategoryService
         return match ($this->normalize($category)) {
             'pending-at-vle' => $query->where(function (Builder $builder): void {
                 $builder
-                    ->where('is_draft', true)
-                    ->orWhereNull('submitted_at')
-                    ->orWhereNull('wallet_paid_at')
-                    ->orWhereIn('status', ScholarshipApplicationStatus::pendingAtVleValues());
+                    ->where('application_state', 'created')
+                    ->orWhere('submission_state', 'wallet_pending')
+                    ->orWhere('workflow_state', 'pending_at_vle');
             }),
-            'under-process' => $query->where('is_draft', false)->whereIn('status', ScholarshipApplicationStatus::underProcessValues()),
-            'completed' => $query->where('is_draft', false)->whereIn('status', ScholarshipApplicationStatus::completedValues()),
-            'failed' => $query->whereIn('status', ScholarshipApplicationStatus::failedValues()),
-            'rejected' => $query->whereIn('status', ScholarshipApplicationStatus::rejectedValues()),
+            'under-process' => $query->where('application_state', 'in_workflow'),
+            'completed' => $query->where('application_state', 'completed'),
+            'failed' => $query->where('payment_state', 'beneficiary_payment_failed'),
+            'rejected' => $query->where('approval_state', 'rejected'),
             default => $query,
         };
     }

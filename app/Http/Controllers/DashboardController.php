@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
-use App\Domains\Scholarship\Enums\ScholarshipApplicationStatus;
 use App\Models\AcademicSession;
 use App\Models\Scheme;
 use App\Models\ScholarshipApplication;
@@ -99,9 +98,9 @@ final class DashboardController extends Controller
                 'route' => 'samitis',
             ] : null,
             $user && $permissions->can($user, 'applications.view') ? ['label' => 'Applications', 'value' => (clone $visibleApplications)->count(), 'icon' => 'fa-file-lines', 'color' => 'secondary', 'route' => null] : null,
-            $user && $permissions->can($user, 'applications.view') ? ['label' => 'Pending Applications', 'value' => (clone $visibleApplications)->whereIn('status', ScholarshipApplicationStatus::pendingAtVleValues())->count(), 'icon' => 'fa-clock', 'color' => 'warning', 'route' => null] : null,
-            $user && $permissions->can($user, 'applications.view') ? ['label' => 'Approved Applications', 'value' => (clone $visibleApplications)->whereIn('status', ScholarshipApplicationStatus::completedValues())->count(), 'icon' => 'fa-circle-check', 'color' => 'success', 'route' => null] : null,
-            $user && $permissions->can($user, 'applications.view') ? ['label' => 'Rejected Applications', 'value' => (clone $visibleApplications)->whereIn('status', ScholarshipApplicationStatus::rejectedValues())->count(), 'icon' => 'fa-circle-xmark', 'color' => 'danger', 'route' => null] : null,
+            $user && $permissions->can($user, 'applications.view') ? ['label' => 'Pending Applications', 'value' => (clone $visibleApplications)->where('application_state', 'in_workflow')->count(), 'icon' => 'fa-clock', 'color' => 'warning', 'route' => null] : null,
+            $user && $permissions->can($user, 'applications.view') ? ['label' => 'Approved Applications', 'value' => (clone $visibleApplications)->where('application_state', 'completed')->count(), 'icon' => 'fa-circle-check', 'color' => 'success', 'route' => null] : null,
+            $user && $permissions->can($user, 'applications.view') ? ['label' => 'Rejected Applications', 'value' => (clone $visibleApplications)->where('approval_state', 'rejected')->count(), 'icon' => 'fa-circle-xmark', 'color' => 'danger', 'route' => null] : null,
         ])));
 
         return view('dashboard', [

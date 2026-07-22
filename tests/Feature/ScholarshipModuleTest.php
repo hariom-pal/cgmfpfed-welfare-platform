@@ -34,12 +34,22 @@ final class ScholarshipModuleTest extends TestCase
 
         $this->assertFalse($submitted->is_draft);
         $this->assertSame(ScholarshipApplicationStatus::Pending->value, $submitted->status);
+        $this->assertSame('in_workflow', $submitted->application_state);
+        $this->assertSame('submitted', $submitted->submission_state);
+        $this->assertSame('pending_samiti', $submitted->workflow_state);
+        $this->assertSame('samiti', $submitted->workflow_stage);
+        $this->assertSame('wallet_not_required', $submitted->payment_state);
         $this->assertSame('80.00', $submitted->percentage);
         $this->assertSame('2500.00', $submitted->amount);
         $this->assertNotNull($submitted->application_number);
         $this->assertDatabaseHas('scholarship_application_audits', [
             'scholarship_application_id' => $submitted->id,
             'action' => 'submitted',
+        ]);
+        $this->assertDatabaseHas('scholarship_workflow_transitions', [
+            'scholarship_application_id' => $submitted->id,
+            'action' => 'submitted',
+            'to_workflow_state' => 'pending_samiti',
         ]);
         $this->assertFalse(Schema::hasColumn('scholarship_applications', 'head_of_family_bank_account_number'));
     }
@@ -102,6 +112,8 @@ final class ScholarshipModuleTest extends TestCase
         $application = $this->service()->transition($application, 'recommend', 'Samiti verified', $user);
 
         $this->assertSame(ScholarshipApplicationStatus::RecommendedBySamiti->value, $application->status);
+        $this->assertSame('pending_ic', $application->workflow_state);
+        $this->assertSame('ic', $application->workflow_stage);
         $this->assertDatabaseHas('scholarship_application_audits', [
             'scholarship_application_id' => $application->id,
             'action' => 'recommend',
@@ -179,6 +191,9 @@ final class ScholarshipModuleTest extends TestCase
 
         $application = ScholarshipApplication::query()->firstOrFail();
         $this->assertTrue($application->is_draft);
+        $this->assertSame('created', $application->application_state);
+        $this->assertSame('wallet_pending', $application->fresh()->submission_state);
+        $this->assertSame('wallet_pending', $application->fresh()->payment_state);
         $this->assertDatabaseHas('scholarship_wallet_transactions', [
             'scholarship_application_id' => $application->id,
             'transaction_type' => 'application_fee',
@@ -199,6 +214,15 @@ final class ScholarshipModuleTest extends TestCase
         $submitted = $application->refresh();
         $this->assertFalse($submitted->is_draft);
         $this->assertNotNull($submitted->wallet_paid_at);
+        $this->assertSame('in_workflow', $submitted->application_state);
+        $this->assertSame('submitted', $submitted->submission_state);
+        $this->assertSame('pending_samiti', $submitted->workflow_state);
+        $this->assertSame('wallet_success', $submitted->payment_state);
+        $this->assertDatabaseHas('scholarship_payment_attempts', [
+            'scholarship_application_id' => $application->id,
+            'transaction_number' => $reference,
+            'payment_state' => 'completed',
+        ]);
         $this->assertDatabaseHas('scholarship_application_audits', [
             'scholarship_application_id' => $application->id,
             'action' => 'wallet_payment_completed',
@@ -286,6 +310,7 @@ final class ScholarshipModuleTest extends TestCase
                 'passbook' => ['file_path' => 'tests/passbook.pdf'],
             ],
         ]), $user);
+        $application = $this->service()->submit($application, $user);
 
         $document = $application->currentDocuments()->where('document_type', 'tpcard')->firstOrFail();
 

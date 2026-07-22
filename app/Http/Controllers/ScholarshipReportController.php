@@ -41,9 +41,9 @@ class ScholarshipReportController extends Controller
             'currentScheme' => $currentScheme,
             'totals' => [
                 'applications' => (clone $visible)->count(),
-                'submitted' => (clone $visible)->where('is_draft', false)->count(),
+                'submitted' => (clone $visible)->whereIn('application_state', ['in_workflow', 'returned_for_correction', 'rejected', 'completed'])->count(),
                 'amount' => (clone $visible)->sum('amount'),
-                'paid' => (clone $visible)->where('payment_status', 'success')->sum('amount'),
+                'paid' => (clone $visible)->where('payment_state', 'beneficiary_payment_success')->sum('amount'),
             ],
             'byStatus' => $statusRows,
         ]);

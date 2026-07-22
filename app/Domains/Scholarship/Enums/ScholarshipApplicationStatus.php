@@ -114,6 +114,61 @@ enum ScholarshipApplicationStatus: int
         };
     }
 
+    public function workflowState(): string
+    {
+        return match ($this) {
+            self::Pending => 'pending_samiti',
+            self::Resubmitted => 'resubmitted_pending_samiti',
+            self::RejectedBySamiti, self::RejectedByIC, self::RejectedByCCF, self::RejectedByDistrictUnion, self::RejectedByDistrictUnionViaCCF, self::RejectedByHQ, self::RejectedByHQViaCCF, self::PermanentlyRejectedByAccounts => 'returned_for_correction',
+            self::RecommendedBySamiti => 'pending_ic',
+            self::RecommendedByIC => 'pending_district_union',
+            self::RecommendedByDistrictUnion, self::RecommendedByDistrictUnionViaCCF => 'pending_hq',
+            self::RecommendedForPayment, self::RecommendedForPaymentViaCCF, self::FinalApplicationForPayment => 'pending_accounts',
+            self::PaymentBatchSubmitted => 'payment_processing',
+            self::PaymentFailed, self::PaymentFailedViaCCF => 'payment_failed',
+            self::PaymentCompleted, self::PaymentCompletedViaCCF => 'payment_completed',
+            self::PermanentlyRejectedBySamiti, self::PermanentlyRejectedByIC, self::PermanentlyRejectedByCCF, self::PermanentlyRejectedByDistrictUnion, self::PermanentlyRejectedByHQ => 'rejected',
+            self::AccountDetailsUpdatedByHQ => 'account_details_updated',
+            self::AppealedByBeneficiary => 'appealed',
+            default => 'source_system_review',
+        };
+    }
+
+    public function workflowStage(): string
+    {
+        return match ($this) {
+            self::Pending, self::Resubmitted, self::RejectedBySamiti => 'samiti',
+            self::RecommendedBySamiti, self::RejectedByIC => 'ic',
+            self::RecommendedByIC, self::RejectedByDistrictUnion, self::RejectedByDistrictUnionViaCCF => 'district_union',
+            self::RecommendedByDistrictUnion, self::RecommendedByDistrictUnionViaCCF, self::RejectedByHQ, self::RejectedByHQViaCCF, self::AccountDetailsUpdatedByHQ => 'hq',
+            self::RecommendedForPayment, self::RecommendedForPaymentViaCCF, self::FinalApplicationForPayment, self::PaymentBatchSubmitted, self::PaymentFailed, self::PaymentFailedViaCCF, self::PermanentlyRejectedByAccounts => 'accounts',
+            self::PaymentCompleted, self::PaymentCompletedViaCCF => 'completed',
+            self::PermanentlyRejectedBySamiti, self::PermanentlyRejectedByIC, self::PermanentlyRejectedByCCF, self::PermanentlyRejectedByDistrictUnion, self::PermanentlyRejectedByHQ => 'closed',
+            default => 'source_system',
+        };
+    }
+
+    public function approvalState(): string
+    {
+        return match ($this) {
+            self::RejectedBySamiti, self::RejectedByIC, self::RejectedByCCF, self::RejectedByDistrictUnion, self::RejectedByDistrictUnionViaCCF, self::RejectedByHQ, self::RejectedByHQViaCCF, self::PermanentlyRejectedByAccounts => 'returned_for_correction',
+            self::PermanentlyRejectedBySamiti, self::PermanentlyRejectedByIC, self::PermanentlyRejectedByCCF, self::PermanentlyRejectedByDistrictUnion, self::PermanentlyRejectedByHQ => 'rejected',
+            self::PaymentCompleted, self::PaymentCompletedViaCCF => 'approved',
+            self::RecommendedBySamiti, self::RecommendedByIC, self::RecommendedByDistrictUnion, self::RecommendedByDistrictUnionViaCCF, self::RecommendedForPayment, self::RecommendedForPaymentViaCCF, self::FinalApplicationForPayment, self::PaymentBatchSubmitted => 'recommended',
+            default => 'pending',
+        };
+    }
+
+    public function isCompleted(): bool
+    {
+        return in_array($this, self::completedCases(), true);
+    }
+
+    public function isPaymentFailed(): bool
+    {
+        return in_array($this, self::failedCases(), true);
+    }
+
     public function isTerminal(): bool
     {
         return in_array($this, [

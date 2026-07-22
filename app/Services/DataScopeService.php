@@ -21,18 +21,28 @@ final class DataScopeService
      */
     public function applyScholarshipVisibility(Builder $query, User $user): Builder
     {
-        return match ($this->roles->key($user)) {
+        $role = $this->roles->key($user);
+
+        if ($role !== 'VLE') {
+            $query->whereIn('application_state', ['in_workflow', 'returned_for_correction', 'rejected', 'completed']);
+        }
+
+        return match ($role) {
             'VLE' => $query->where('applicant_user_id', $user->id),
             2, 4 => $query->whereIn('district_union_id', $this->districtUnionScope($user)),
             3 => $query->where('samiti_id', (int) $user->samiti),
             5 => $query->whereIn('district_union_id', $this->circleDistrictUnionScope($user)),
-            6 => $query->whereIn('status', $this->financeStatuses()),
+            6 => $query->where('workflow_stage', 'accounts'),
             default => $query,
         };
     }
 
     public function canViewScholarshipApplication(User $user, ScholarshipApplication $application): bool
     {
+        if ($this->roles->key($user) !== 'VLE' && $application->application_state === 'created') {
+            return false;
+        }
+
         return match ($this->roles->key($user)) {
             'VLE' => (int) $application->applicant_user_id === (int) $user->id,
             2, 4 => in_array((int) $application->district_union_id, $this->districtUnionScope($user), true),

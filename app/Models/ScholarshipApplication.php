@@ -25,9 +25,19 @@ class ScholarshipApplication extends Model
         'status',
         'status_label',
         'current_stage',
+        'application_state',
+        'submission_state',
+        'workflow_state',
+        'workflow_stage',
+        'approval_state',
+        'payment_state',
         'is_draft',
         'submitted_at',
         'submitted_by',
+        'entered_workflow_at',
+        'returned_at',
+        'rejected_at',
+        'completed_at',
         'wallet_paid_at',
         'legacy_application_id',
         'district_id',
@@ -181,6 +191,16 @@ class ScholarshipApplication extends Model
         return $this->hasMany(ScholarshipWalletTransaction::class);
     }
 
+    public function workflowTransitions(): HasMany
+    {
+        return $this->hasMany(ScholarshipWorkflowTransition::class);
+    }
+
+    public function paymentAttempts(): HasMany
+    {
+        return $this->hasMany(ScholarshipPaymentAttempt::class);
+    }
+
     public function getStatusEnumAttribute(): ?ScholarshipApplicationStatus
     {
         return ScholarshipApplicationStatus::tryFrom((int) $this->status);
@@ -192,6 +212,10 @@ class ScholarshipApplication extends Model
             'status' => 'integer',
             'is_draft' => 'boolean',
             'submitted_at' => 'datetime',
+            'entered_workflow_at' => 'datetime',
+            'returned_at' => 'datetime',
+            'rejected_at' => 'datetime',
+            'completed_at' => 'datetime',
             'wallet_paid_at' => 'datetime',
             'tendupatta_verified_at' => 'datetime',
             'district_id' => 'integer',

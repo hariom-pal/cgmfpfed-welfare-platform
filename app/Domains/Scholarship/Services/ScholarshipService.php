@@ -12,11 +12,14 @@ use App\Models\ScholarshipApplication;
 use App\Models\ScholarshipApplicationAudit;
 use App\Models\ScholarshipApplicationDocument;
 use App\Models\ScholarshipNotification;
+use App\Models\ScholarshipPaymentAttempt;
 use App\Models\ScholarshipTendupattaCollection;
 use App\Models\ScholarshipWalletTransaction;
 use App\Models\ScholarshipWorkflowBatch;
+use App\Models\ScholarshipWorkflowTransition;
 use App\Models\User;
 use App\Services\BaseService;
+use App\Services\RoleService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -26,6 +29,7 @@ final class ScholarshipService extends BaseService implements ScholarshipService
     public function __construct(
         private readonly AadhaarServiceInterface $aadhaarService,
         private readonly WalletServiceInterface $walletService,
+        private readonly RoleService $roles,
     ) {}
 
     public function createDraft(array $data, User $user): ScholarshipApplication
@@ -39,6 +43,12 @@ final class ScholarshipService extends BaseService implements ScholarshipService
             $payload['status'] = ScholarshipApplicationStatus::Pending->value;
             $payload['status_label'] = 'Draft';
             $payload['current_stage'] = 'draft';
+            $payload['application_state'] = 'created';
+            $payload['submission_state'] = 'draft';
+            $payload['workflow_state'] = 'pending_at_vle';
+            $payload['workflow_stage'] = 'vle';
+            $payload['approval_state'] = 'pending';
+            $payload['payment_state'] = 'wallet_not_started';
             $payload['is_draft'] = true;
 
             $application = ScholarshipApplication::query()->create($payload);
@@ -75,12 +85,19 @@ final class ScholarshipService extends BaseService implements ScholarshipService
             $this->validateForSubmit($application);
 
             $status = ScholarshipApplicationStatus::Pending;
+            $fromStates = $this->stateSnapshot($application);
             $fromStatus = (int) $application->status;
             $application->fill([
                 'application_number' => $application->application_number ?: $this->applicationNumber($application),
                 'status' => $status->value,
                 'status_label' => $status->label(),
                 'current_stage' => $status->stage(),
+                ...$this->stateAttributes($status, [
+                    'application_state' => 'in_workflow',
+                    'submission_state' => 'submitted',
+                    'payment_state' => $application->wallet_paid_at ? 'wallet_success' : 'wallet_not_required',
+                    'entered_workflow_at' => now(),
+                ]),
                 'is_draft' => false,
                 'submitted_at' => now(),
                 'submitted_by' => $user->id,
@@ -88,7 +105,7 @@ final class ScholarshipService extends BaseService implements ScholarshipService
             ])->save();
 
             $this->recordWalletEntry($application, $user, 'application_submission', 0, 'SUBMIT-'.$application->id);
-            $this->audit($application, 'submitted', $fromStatus, $status->stage(), 'Application finally submitted', $user);
+            $this->audit($application, 'submitted', $fromStatus, $status->stage(), 'Application finally submitted', $user, $this->withFromStates([], $fromStates));
             $this->notify($application, $user, 'Scholarship application submitted', $status->label());
 
             return $application->refresh();
@@ -99,9 +116,18 @@ final class ScholarshipService extends BaseService implements ScholarshipService
     {
         return DB::transaction(function () use ($application, $user): ScholarshipApplication {
             $this->validateForSubmit($application);
+            $fromStates = $this->stateSnapshot($application);
             $transaction = $this->walletService->initiateApplicationFee($application, $user);
+            $application->forceFill([
+                'application_state' => 'created',
+                'submission_state' => 'wallet_pending',
+                'payment_state' => 'wallet_pending',
+                'updated_by' => $user->id,
+            ])->save();
+            $this->recordPaymentAttempt($application->refresh(), $transaction, 'pending', $user);
 
             $this->audit($application, 'wallet_payment_initiated', (int) $application->status, 'wallet', 'CSC wallet payment initiated', $user, [
+                ...$this->withFromStates([], $fromStates),
                 'wallet_transaction_id' => $transaction->id,
                 'reference' => $transaction->reference,
             ]);
@@ -117,7 +143,16 @@ final class ScholarshipService extends BaseService implements ScholarshipService
 
             if (! $success) {
                 $transaction = $this->walletService->failApplicationFee($application, $walletResponse, $user);
+                $fromStates = $this->stateSnapshot($application);
+                $application->forceFill([
+                    'application_state' => 'created',
+                    'submission_state' => 'wallet_pending',
+                    'payment_state' => 'wallet_failed',
+                    'updated_by' => $user->id,
+                ])->save();
+                $this->recordPaymentAttempt($application->refresh(), $transaction, 'failed', $user, $walletResponse);
                 $this->audit($application, 'wallet_payment_failed', (int) $application->status, 'wallet', 'CSC wallet payment failed or cancelled', $user, [
+                    ...$this->withFromStates([], $fromStates),
                     'wallet_transaction_id' => $transaction->id,
                     'response' => $walletResponse,
                 ]);
@@ -126,9 +161,18 @@ final class ScholarshipService extends BaseService implements ScholarshipService
             }
 
             $transaction = $this->walletService->completeApplicationFee($application, $walletResponse, $user);
-            $application->forceFill(['wallet_paid_at' => now()])->save();
+            $fromStates = $this->stateSnapshot($application);
+            $application->forceFill([
+                'wallet_paid_at' => now(),
+                'application_state' => 'submitted',
+                'submission_state' => 'submitted',
+                'payment_state' => 'wallet_success',
+                'updated_by' => $user->id,
+            ])->save();
+            $this->recordPaymentAttempt($application->refresh(), $transaction, 'completed', $user, $walletResponse);
             $submitted = $this->submit($application->refresh(), $user);
             $this->audit($submitted, 'wallet_payment_completed', (int) $application->status, 'wallet', 'CSC wallet payment completed', $user, [
+                ...$this->withFromStates([], $fromStates),
                 'wallet_transaction_id' => $transaction->id,
                 'response' => $walletResponse,
             ]);
@@ -152,6 +196,7 @@ final class ScholarshipService extends BaseService implements ScholarshipService
 
         return DB::transaction(function () use ($application, $data, $user): ScholarshipApplication {
             $payload = $this->normalizeApplicationData($data, $user, $application);
+            $fromStates = $this->stateSnapshot($application);
             $fromStatus = (int) $application->status;
             $status = $fromStatus === ScholarshipApplicationStatus::PermanentlyRejectedByAccounts->value
                 ? ScholarshipApplicationStatus::AccountDetailsUpdatedByHQ
@@ -162,6 +207,12 @@ final class ScholarshipService extends BaseService implements ScholarshipService
                 'status' => $status->value,
                 'status_label' => $status->label(),
                 'current_stage' => $status->stage(),
+                ...$this->stateAttributes($status, [
+                    'application_state' => 'in_workflow',
+                    'submission_state' => 'resubmitted',
+                    'returned_at' => null,
+                    'rejected_at' => null,
+                ]),
                 'is_draft' => false,
                 'metadata' => array_diff_key($this->applicationMetadata($application), array_flip(['correction_sections', 'editable_documents', 'returned_at', 'returned_by'])),
                 'updated_by' => $user->id,
@@ -173,7 +224,7 @@ final class ScholarshipService extends BaseService implements ScholarshipService
                 ->where('is_current', true)
                 ->update(['editable_after_return' => false]);
             $this->validateForSubmit($application->refresh());
-            $this->audit($application, 'resubmitted', $fromStatus, $status->stage(), 'Application resubmitted after return', $user, $data);
+            $this->audit($application, 'resubmitted', $fromStatus, $status->stage(), 'Application resubmitted after return', $user, $this->withFromStates($data, $fromStates));
             $this->notify($application, $user, 'Scholarship application resubmitted', $status->label());
 
             return $application->refresh();
@@ -204,6 +255,7 @@ final class ScholarshipService extends BaseService implements ScholarshipService
     {
         return DB::transaction(function () use ($application, $action, $remarks, $user, $correctionSections, $editableDocuments): ScholarshipApplication {
             $status = $this->nextStatus($application, $action);
+            $fromStates = $this->stateSnapshot($application);
             $fromStatus = (int) $application->status;
             $selectedSections = array_values(array_unique(array_filter(array_map('strval', $correctionSections))));
             $selectedDocuments = array_values(array_unique(array_filter(array_map('strval', $editableDocuments))));
@@ -212,6 +264,7 @@ final class ScholarshipService extends BaseService implements ScholarshipService
                 'status' => $status->value,
                 'status_label' => $status->label(),
                 'current_stage' => $status->stage(),
+                ...$this->stateAttributes($status),
                 'updated_by' => $user->id,
             ];
 
@@ -251,6 +304,7 @@ final class ScholarshipService extends BaseService implements ScholarshipService
 
             $application->fill($updates)->save();
             $this->audit($application, $action, $fromStatus, $status->stage(), $remarks ?: $status->label(), $user, [
+                ...$this->withFromStates([], $fromStates),
                 'correction_sections' => $selectedSections,
                 'editable_documents' => $selectedDocuments,
             ]);
@@ -278,12 +332,18 @@ final class ScholarshipService extends BaseService implements ScholarshipService
     {
         return DB::transaction(function () use ($application, $success, $reference, $failureReason, $user): ScholarshipApplication {
             $status = $success ? ScholarshipApplicationStatus::PaymentCompleted : ScholarshipApplicationStatus::PaymentFailed;
+            $fromStates = $this->stateSnapshot($application);
             $fromStatus = (int) $application->status;
 
             $application->fill([
                 'status' => $status->value,
                 'status_label' => $status->label(),
                 'current_stage' => $status->stage(),
+                ...$this->stateAttributes($status, [
+                    'application_state' => $success ? 'completed' : 'in_workflow',
+                    'payment_state' => $success ? 'beneficiary_payment_success' : 'beneficiary_payment_failed',
+                    'completed_at' => $success ? now() : null,
+                ]),
                 'payment_status' => $success ? 'success' : 'failed',
                 'payment_reference_id' => $reference,
                 'payment_failure_reason' => $success ? null : $failureReason,
@@ -291,7 +351,7 @@ final class ScholarshipService extends BaseService implements ScholarshipService
                 'updated_by' => $user->id,
             ])->save();
 
-            $this->audit($application, $success ? 'payment_success' : 'payment_failed', $fromStatus, $status->stage(), $failureReason ?: $status->label(), $user);
+            $this->audit($application, $success ? 'payment_success' : 'payment_failed', $fromStatus, $status->stage(), $failureReason ?: $status->label(), $user, $this->withFromStates([], $fromStates));
 
             return $application->refresh();
         });
@@ -725,6 +785,9 @@ final class ScholarshipService extends BaseService implements ScholarshipService
 
     private function audit(ScholarshipApplication $application, string $action, ?int $fromStatus, ?string $stage, ?string $remarks, User $user, array $payload = []): void
     {
+        $fromStates = $payload['_from_states'] ?? [];
+        unset($payload['_from_states']);
+
         ScholarshipApplicationAudit::query()->create([
             'scholarship_application_id' => $application->id,
             'from_status' => $fromStatus,
@@ -736,6 +799,140 @@ final class ScholarshipService extends BaseService implements ScholarshipService
             'acted_at' => now(),
             'payload' => $payload ?: null,
         ]);
+
+        ScholarshipWorkflowTransition::query()->create([
+            'scholarship_application_id' => $application->id,
+            'from_application_state' => $fromStates['application_state'] ?? null,
+            'to_application_state' => (string) $application->application_state,
+            'from_workflow_state' => $fromStates['workflow_state'] ?? null,
+            'to_workflow_state' => (string) $application->workflow_state,
+            'from_workflow_stage' => $fromStates['workflow_stage'] ?? null,
+            'to_workflow_stage' => (string) $application->workflow_stage,
+            'from_payment_state' => $fromStates['payment_state'] ?? null,
+            'to_payment_state' => (string) $application->payment_state,
+            'from_approval_state' => $fromStates['approval_state'] ?? null,
+            'to_approval_state' => (string) $application->approval_state,
+            'action' => $action,
+            'remarks' => $remarks,
+            'acted_by' => $user->id,
+            'acted_by_role' => $this->roles->name($user),
+            'acted_at' => now(),
+            'payload' => $payload ?: null,
+        ]);
+    }
+
+    /**
+     * @return array<string, string|null>
+     */
+    private function stateSnapshot(ScholarshipApplication $application): array
+    {
+        return [
+            'application_state' => $application->application_state,
+            'submission_state' => $application->submission_state,
+            'workflow_state' => $application->workflow_state,
+            'workflow_stage' => $application->workflow_stage,
+            'approval_state' => $application->approval_state,
+            'payment_state' => $application->payment_state,
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     * @param  array<string, string|null>  $fromStates
+     * @return array<string, mixed>
+     */
+    private function withFromStates(array $payload, array $fromStates): array
+    {
+        $payload['_from_states'] = $fromStates;
+
+        return $payload;
+    }
+
+    /**
+     * @param  array<string, mixed>  $overrides
+     * @return array<string, mixed>
+     */
+    private function stateAttributes(ScholarshipApplicationStatus $status, array $overrides = []): array
+    {
+        $attributes = [
+            'application_state' => $this->applicationStateFor($status),
+            'workflow_state' => $status->workflowState(),
+            'workflow_stage' => $status->workflowStage(),
+            'approval_state' => $status->approvalState(),
+            'payment_state' => $this->paymentStateFor($status),
+            'returned_at' => $status->approvalState() === 'returned_for_correction' ? now() : null,
+            'rejected_at' => $status->approvalState() === 'rejected' ? now() : null,
+            'completed_at' => $status->isCompleted() ? now() : null,
+        ];
+
+        return array_merge($attributes, $overrides);
+    }
+
+    private function applicationStateFor(ScholarshipApplicationStatus $status): string
+    {
+        if ($status->isCompleted()) {
+            return 'completed';
+        }
+
+        if ($status->approvalState() === 'rejected') {
+            return 'rejected';
+        }
+
+        if ($status->approvalState() === 'returned_for_correction') {
+            return 'returned_for_correction';
+        }
+
+        return 'in_workflow';
+    }
+
+    private function paymentStateFor(ScholarshipApplicationStatus $status): string
+    {
+        return match (true) {
+            $status === ScholarshipApplicationStatus::PaymentBatchSubmitted => 'beneficiary_payment_submitted',
+            $status->isPaymentFailed() => 'beneficiary_payment_failed',
+            $status->isCompleted() => 'beneficiary_payment_success',
+            in_array($status, [
+                ScholarshipApplicationStatus::RecommendedForPayment,
+                ScholarshipApplicationStatus::RecommendedForPaymentViaCCF,
+                ScholarshipApplicationStatus::FinalApplicationForPayment,
+            ], true) => 'beneficiary_payment_pending',
+            default => 'wallet_success',
+        };
+    }
+
+    private function recordPaymentAttempt(
+        ScholarshipApplication $application,
+        ScholarshipWalletTransaction $transaction,
+        string $state,
+        User $user,
+        array $response = [],
+    ): void {
+        $existing = ScholarshipPaymentAttempt::query()
+            ->where('wallet_transaction_id', $transaction->id)
+            ->first();
+        $attemptNumber = $existing instanceof ScholarshipPaymentAttempt ? $existing->attempt_number : (((int) ScholarshipPaymentAttempt::query()
+            ->where('scholarship_application_id', $application->id)
+            ->where('payment_purpose', 'vle_submission_fee')
+            ->max('attempt_number')) ?: 0) + 1;
+
+        ScholarshipPaymentAttempt::query()->updateOrCreate(
+            ['wallet_transaction_id' => $transaction->id],
+            [
+                'scholarship_application_id' => $application->id,
+                'payment_purpose' => 'vle_submission_fee',
+                'payment_channel' => 'csc_wallet',
+                'transaction_number' => $transaction->reference,
+                'amount' => $transaction->amount,
+                'payment_state' => $state,
+                'payment_requested_at' => $transaction->created_at,
+                'payment_completed_at' => $state === 'completed' ? now() : null,
+                'failure_reason' => $state === 'failed' ? (string) ($response['txn_status_message'] ?? $response['txn_status'] ?? 'Wallet payment failed') : null,
+                'attempt_number' => $attemptNumber,
+                'request_payload' => $transaction->metadata['request'] ?? null,
+                'response_payload' => $response ?: null,
+                'created_by' => $user->id,
+            ],
+        );
     }
 
     private function notify(ScholarshipApplication $application, User $user, string $subject, string $body): void
