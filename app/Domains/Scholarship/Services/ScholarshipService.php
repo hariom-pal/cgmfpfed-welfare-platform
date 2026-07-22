@@ -402,12 +402,12 @@ final class ScholarshipService extends BaseService implements ScholarshipService
         $schemeId = (int) $this->inputValue($data, 'scheme_id', $application, 0);
         $class = (string) $this->inputValue($data, 'class', $application, '');
         $yearOfStudy = (int) $this->inputValue($data, 'current_year_of_study', $application, 0);
-        $academicSessionId = (int) $this->inputValue($data, 'academic_session_id', $application, 0);
-        $scholarshipSession = $this->sessions->deriveForDate($application?->created_at ?? now());
+        $academicSession = $this->sessions->deriveForDate($application?->created_at ?? now());
+        $scholarshipSession = $academicSession;
 
-        if ($scholarshipSession === null) {
+        if ($academicSession === null || $scholarshipSession === null) {
             throw ValidationException::withMessages([
-                'scholarship_session' => 'Scholarship Session master is not configured for the application date.',
+                'academic_session_id' => 'Academic Session master is not configured for the application date.',
             ]);
         }
 
@@ -424,7 +424,7 @@ final class ScholarshipService extends BaseService implements ScholarshipService
         }
 
         return [
-            'academic_session_id' => $academicSessionId,
+            'academic_session_id' => $academicSession->id,
             'scholarship_session_id' => $scholarshipSession->id,
             'scheme_id' => $schemeId,
             'district_id' => $this->nullableInt($this->inputValue($data, 'district_id', $application)),

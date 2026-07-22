@@ -16,6 +16,25 @@
         </div>
     @endif
 
+    <form method="GET" class="row g-2 align-items-end mb-3">
+        @if($currentScheme ?? null)
+            <input type="hidden" name="scheme" value="{{ $currentScheme->id }}">
+        @endif
+        <div class="col-md-4 col-lg-3">
+            <label class="form-label" for="academic_session_id">Academic Session</label>
+            <select class="form-select" id="academic_session_id" name="academic_session_id">
+                <option value="">All</option>
+                @foreach($academicSessions as $session)
+                    <option value="{{ $session->id }}" @selected(($currentAcademicSession?->id ?? '') === $session->id)>{{ $session->name }}</option>
+                @endforeach
+            </select>
+        </div>
+        <div class="col-md-3 d-flex gap-2">
+            <button class="btn btn-outline-primary" type="submit"><i class="fa-solid fa-filter me-1"></i>Apply</button>
+            <a class="btn btn-outline-secondary" href="{{ route('dashboard', array_filter(['scheme' => $currentScheme?->id ?? null])) }}">Reset</a>
+        </div>
+    </form>
+
     <div class="row g-3 mb-4">
         @foreach($cards as $card)
             <div class="col-sm-6 col-xl-3">

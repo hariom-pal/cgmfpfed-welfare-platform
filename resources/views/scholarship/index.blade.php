@@ -31,11 +31,11 @@
                 <input class="form-control" id="aadhaar_number" name="aadhaar_number" value="{{ $filters['aadhaar_number'] ?? '' }}" maxlength="12">
             </div>
             <div class="col-md-3">
-                <label class="form-label" for="scholarship_session_id">Scholarship Session</label>
-                <select class="form-select" id="scholarship_session_id" name="scholarship_session_id">
+                <label class="form-label" for="academic_session_id">Academic Session</label>
+                <select class="form-select" id="academic_session_id" name="academic_session_id">
                     <option value="">All</option>
                     @foreach($sessions as $session)
-                        <option value="{{ $session->id }}" @selected(($filters['scholarship_session_id'] ?? '') == $session->id)>{{ $session->name }}</option>
+                        <option value="{{ $session->id }}" @selected(($filters['academic_session_id'] ?? '') == $session->id)>{{ $session->name }}</option>
                     @endforeach
                 </select>
             </div>
@@ -101,7 +101,7 @@
                     <tr>
                         <td>
                             <div class="fw-semibold">{{ $application->application_number ?? 'Draft #'.$application->id }}</div>
-                            <div class="small text-muted">{{ $application->scholarshipSession?->name ?? $application->scholarship_session }}</div>
+                            <div class="small text-muted">{{ $application->academicSession?->name }}</div>
                         </td>
                         <td>
                             <div>{{ $application->student_name }}</div>

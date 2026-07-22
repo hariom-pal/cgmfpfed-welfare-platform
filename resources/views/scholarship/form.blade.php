@@ -40,12 +40,8 @@
         <x-card title="Information Regarding Primary Society / प्राथमिक सोसायटी के संबंध में जानकारी" icon="fa-solid fa-building" class="mb-3">
             <div class="row g-3">
                 <div class="col-md-4">
-                    <label class="form-label">Academic Session / शिक्षा सत्र <span class="text-danger">*</span></label>
-                    <select class="form-select" name="academic_session_id" required>
-                        @foreach($sessions as $session)
-                            <option value="{{ $session->id }}" @selected(old('academic_session_id', $application?->academic_session_id) == $session->id)>{{ $session->name }}</option>
-                        @endforeach
-                    </select>
+                    <label class="form-label">Academic Session / शिक्षा सत्र</label>
+                    <input class="form-control" value="{{ $application?->academicSession?->name ?? $currentAcademicSession?->name ?? 'Not configured' }}" readonly>
                 </div>
                 <div class="col-md-4">
                     <label class="form-label">Scholarship Session</label>

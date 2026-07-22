@@ -223,6 +223,7 @@ class ScholarshipController extends Controller
         return [
             'application' => $application,
             'selectedScheme' => $selectedScheme,
+            'currentAcademicSession' => $application?->academicSession ?? $this->sessions->deriveForDate($application?->created_at ?? now()),
             'currentScholarshipSession' => $application?->scholarshipSession ?? $this->sessions->deriveForDate($application?->created_at ?? now()),
             'schemes' => Scheme::query()->where('is_active', true)->orderBy('name')->get(),
             'sessions' => AcademicSession::query()->orderByDesc('start_date')->get(),
@@ -247,7 +248,6 @@ class ScholarshipController extends Controller
     private function payload(Request $request): array
     {
         $payload = $request->validate([
-            'academic_session_id' => ['required', 'integer', 'exists:academic_sessions,id'],
             'scheme_id' => ['required', 'integer', 'exists:schemes,id'],
             'student_aadhaar' => ['required', 'digits:12'],
             'student_name' => ['required', 'string', 'max:255'],

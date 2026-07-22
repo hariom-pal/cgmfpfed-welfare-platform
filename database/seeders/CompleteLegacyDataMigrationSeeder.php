@@ -217,7 +217,8 @@ final class CompleteLegacyDataMigrationSeeder extends Seeder
                 DB::table('scholarship_applications')->insert($chunk->map(function (object $row): array {
                     $status = ScholarshipApplicationStatus::tryFrom((int) $row->status) ?? ScholarshipApplicationStatus::Pending;
                     $createdAt = $this->dateValue($row->add_date) ?? now();
-                    $academicSessionId = $this->academicSessionId($row->first_year_session ?: $row->scholarship_session ?: $row->passing_year);
+                    $academicSessionId = $this->scholarshipSessionIdForDate($createdAt)
+                        ?? $this->academicSessionId($row->scholarship_session);
                     $scholarshipSessionId = $this->scholarshipSessionIdForDate($createdAt)
                         ?? $this->academicSessionId($row->scholarship_session);
                     $class = (string) $row->class;

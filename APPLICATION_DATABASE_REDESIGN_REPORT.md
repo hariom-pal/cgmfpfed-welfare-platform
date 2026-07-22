@@ -27,7 +27,7 @@ The scholarship business domain in the dump is centered on `application`, with s
 
 - `application.status` is retained for legacy status compatibility, while normalized lifecycle columns now drive behavior: `application_state`, `submission_state`, `workflow_state`, `workflow_stage`, `approval_state`, and `payment_state`.
 - `payment_txn_status` and `paymentreferenceid` are separated. VLE wallet payment is represented by `scholarship_wallet_transactions` and payment attempts with purpose `vle_submission_fee`; scholarship disbursement uses purpose `scholarship_disbursement`.
-- `application.scholarship_session` is no longer request-controlled business input. Laravel now stores `scholarship_session_id` derived from application date and the session master, with `scholarship_session` kept as a compatibility/display snapshot.
+- `application.scholarship_session` is no longer request-controlled business input. Laravel now stores `academic_session_id` and `scholarship_session_id` derived from application date and the session master, with `scholarship_session` kept as a compatibility/display snapshot.
 - `application_status` history is redesigned into append-only audit and workflow transition tables so the latest workflow action can be queried accurately.
 - Legacy batch tables are consolidated into `scholarship_workflow_batches` and `scholarship_batch_applications`.
 
@@ -41,14 +41,15 @@ No additional production scholarship table was left unmapped. Backup/clone table
 
 ## 5. Session Master Implementation
 
-`ScholarshipSessionService` derives the scholarship processing session from the application date and `academic_sessions` master rows. It first matches `start_date <= application date <= end_date`, then falls back to the latest configured master session when seed data is sparse.
+`ScholarshipSessionService` derives the Academic Session and scholarship processing session from the application date and `academic_sessions` master rows. It first matches `start_date <= application date <= end_date`, then falls back to the latest configured master session when seed data is sparse.
 
 New and updated applications now receive:
 
+- `academic_session_id`
 - `scholarship_session_id`
 - `scholarship_session` display snapshot from the matched master row
 
-The application form no longer posts editable `scholarship_session`; Blade displays the derived value only.
+The application form no longer posts editable `academic_session_id` or `scholarship_session`; Blade displays the derived values only. A one-time migration recalculates every existing migrated application's `academic_session_id` from its application date and the master date range.
 
 ## 6. Workflow Redesign
 
@@ -134,6 +135,7 @@ scholarship_workflow_batches
 - Preserve legacy identifiers and status values for traceability.
 - Normalize workflow/payment state into typed Laravel enums and service-owned transitions.
 - Backfill `scholarship_session_id` from application `created_at`/legacy `add_date` against session master dates.
+- Backfill `academic_session_id` from application `created_at`/legacy `add_date` against session master dates.
 - Keep legacy text fields only as display snapshots or migration metadata.
 - Keep backup and clone legacy SQL tables out of active Laravel schema after documenting their active equivalents.
 

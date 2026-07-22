@@ -42,10 +42,16 @@ final class DashboardController extends Controller
             : ScholarshipApplication::query()->whereKey(-1);
         $currentSchemeId = (int) ($request->query('scheme') ?: $request->session()->get('current_scheme_id'));
         $currentScheme = $currentSchemeId > 0 ? Scheme::query()->find($currentSchemeId) : null;
+        $academicSessionId = (int) $request->query('academic_session_id');
+        $currentAcademicSession = $academicSessionId > 0 ? AcademicSession::query()->find($academicSessionId) : null;
 
         if ($currentScheme) {
             $request->session()->put('current_scheme_id', $currentScheme->id);
             $visibleApplications->where('scheme_id', $currentScheme->id);
+        }
+
+        if ($currentAcademicSession) {
+            $visibleApplications->where('academic_session_id', $currentAcademicSession->id);
         }
 
         /** @var Collection<int, array{label: string, value: int|string, icon: string, color: string, route: string|null}> $cards */
@@ -109,6 +115,8 @@ final class DashboardController extends Controller
             'cards' => $cards,
             'masterCards' => $user && $permissions->can($user, 'masters.manage') ? $masterCards : collect(),
             'currentScheme' => $currentScheme,
+            'currentAcademicSession' => $currentAcademicSession,
+            'academicSessions' => AcademicSession::query()->orderByDesc('start_date')->get(),
             'activities' => [
                 'Signed in as '.$currentUser->roleName().'.',
                 'Menus are generated from the centralized role and permission services.',

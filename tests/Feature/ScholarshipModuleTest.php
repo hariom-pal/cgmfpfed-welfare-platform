@@ -126,7 +126,7 @@ final class ScholarshipModuleTest extends TestCase
         ]);
     }
 
-    public function test_scholarship_session_is_derived_from_application_date_and_filters_by_last_action(): void
+    public function test_academic_session_is_derived_from_application_date_and_filters_by_last_action(): void
     {
         $user = $this->userWithPermissions();
         $scheme = Scheme::factory()->create(['id' => 1, 'code' => 'SCH1', 'name' => 'Class Scholarship']);
@@ -141,8 +141,9 @@ final class ScholarshipModuleTest extends TestCase
             'end_date' => '2026-03-31',
         ]);
 
-        $application = $this->service()->createDraft($this->validPayload($currentSession->id, 1), $user);
+        $application = $this->service()->createDraft($this->validPayload($otherSession->id, 1), $user);
 
+        $this->assertSame($currentSession->id, $application->academic_session_id);
         $this->assertSame($currentSession->id, $application->scholarship_session_id);
         $this->assertSame('2026-27', $application->scholarship_session);
 
@@ -196,10 +197,28 @@ final class ScholarshipModuleTest extends TestCase
 
         $this->get(route('applications.index', [
             'scheme' => $scheme->id,
-            'scholarship_session_id' => $currentSession->id,
+            'academic_session_id' => $currentSession->id,
+        ]))
+            ->assertOk()
+            ->assertSee('SCH-202627-000501')
+            ->assertDontSee('SCH-202526-000502');
+
+        $this->get(route('applications.index', [
+            'scheme' => $scheme->id,
+            'academic_session_id' => $currentSession->id,
             'last_action_from_date' => '2026-07-20',
             'last_action_to_date' => '2026-07-20',
         ]))
+            ->assertOk()
+            ->assertSee('SCH-202627-000501')
+            ->assertDontSee('SCH-202526-000502');
+
+        $this->get(route('reports.index', ['scheme' => $scheme->id, 'academic_session_id' => $currentSession->id]))
+            ->assertOk()
+            ->assertSee('SCH-202627-000501')
+            ->assertDontSee('SCH-202526-000502');
+
+        $this->get(route('workflow.index', ['academic_session_id' => $currentSession->id]))
             ->assertOk()
             ->assertSee('SCH-202627-000501')
             ->assertDontSee('SCH-202526-000502');

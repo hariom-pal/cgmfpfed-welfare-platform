@@ -6,6 +6,7 @@ namespace App\Http\Controllers;
 
 use App\Domains\Scholarship\Contracts\ScholarshipRepositoryInterface;
 use App\Domains\Scholarship\Contracts\ScholarshipServiceInterface;
+use App\Models\AcademicSession;
 use App\Models\ScholarshipApplication;
 use App\Models\ScholarshipWorkflowBatch;
 use Illuminate\Http\RedirectResponse;
@@ -27,6 +28,8 @@ class ScholarshipWorkflowController extends Controller
         return view('scholarship.workflow.index', [
             'applications' => $this->applications->paginateFor($request->user(), $request->query(), 20),
             'batches' => ScholarshipWorkflowBatch::query()->latest()->limit(10)->get(),
+            'academicSessions' => AcademicSession::query()->orderByDesc('start_date')->get(),
+            'filters' => $request->query(),
         ]);
     }
 
