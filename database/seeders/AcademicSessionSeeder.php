@@ -12,19 +12,24 @@ final class AcademicSessionSeeder extends Seeder
 {
     public function run(): void
     {
-        AcademicSession::updateOrCreate(
-            [
-                'name' => '2026-27',
-            ],
-            [
+        AcademicSession::query()->delete();
+
+        foreach ([
+            ['2023-2024', '2023-08-01', '2024-07-31', false],
+            ['2024-2025', '2024-08-01', '2025-07-31', false],
+            ['2025-2026', '2025-08-01', '2026-07-31', true],
+        ] as $index => [$name, $startDate, $endDate, $isActive]) {
+            AcademicSession::query()->create([
+                'id' => $index + 1,
                 'uuid' => (string) Str::uuid(),
-                'start_date' => '2026-04-01',
-                'end_date' => '2027-03-31',
-                'is_active' => true,
+                'name' => $name,
+                'start_date' => $startDate,
+                'end_date' => $endDate,
+                'is_active' => $isActive,
                 'created_by' => null,
                 'updated_by' => null,
                 'deleted_by' => null,
-            ]
-        );
+            ]);
+        }
     }
 }

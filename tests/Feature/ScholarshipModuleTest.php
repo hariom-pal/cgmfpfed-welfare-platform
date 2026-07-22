@@ -12,6 +12,9 @@ use App\Domains\Scholarship\Enums\SubmissionState;
 use App\Domains\Scholarship\Enums\WorkflowStage;
 use App\Domains\Scholarship\Enums\WorkflowState;
 use App\Models\AcademicSession;
+use App\Models\DistrictUnion;
+use App\Models\Phad;
+use App\Models\Samiti;
 use App\Models\Scheme;
 use App\Models\ScholarshipApplication;
 use App\Models\ScholarshipApplicationDocument;
@@ -222,6 +225,111 @@ final class ScholarshipModuleTest extends TestCase
             ->assertOk()
             ->assertSee('SCH-202627-000501')
             ->assertDontSee('SCH-202526-000502');
+    }
+
+    public function test_academic_session_master_is_reset_to_required_cycles(): void
+    {
+        $this->assertSame([
+            ['2023-2024', '2023-08-01', '2024-07-31', 0],
+            ['2024-2025', '2024-08-01', '2025-07-31', 0],
+            ['2025-2026', '2025-08-01', '2026-07-31', 1],
+        ], AcademicSession::query()
+            ->orderBy('start_date')
+            ->get(['name', 'start_date', 'end_date', 'is_active'])
+            ->map(fn (AcademicSession $session): array => [
+                $session->name,
+                $session->start_date->toDateString(),
+                $session->end_date->toDateString(),
+                (int) $session->is_active,
+            ])
+            ->all());
+    }
+
+    public function test_application_listing_uses_required_filters_only(): void
+    {
+        $user = $this->userWithPermissions();
+        $scheme = Scheme::factory()->create(['id' => 1, 'code' => 'SCH1', 'name' => 'Class Scholarship']);
+        $session = AcademicSession::query()->where('name', '2025-2026')->firstOrFail();
+        $otherSession = AcademicSession::query()->where('name', '2024-2025')->firstOrFail();
+        $districtUnion = DistrictUnion::factory()->create(['name' => 'Union A']);
+        $otherDistrictUnion = DistrictUnion::factory()->create(['name' => 'Union B']);
+        $samiti = Samiti::factory()->create(['name' => 'Samiti A', 'district_union_id' => $districtUnion->id]);
+        $otherSamiti = Samiti::factory()->create(['name' => 'Samiti B', 'district_union_id' => $otherDistrictUnion->id]);
+        $phad = Phad::factory()->create(['name' => 'Phad A', 'district_union_id' => $districtUnion->id, 'samiti_id' => $samiti->id]);
+        $otherPhad = Phad::factory()->create(['name' => 'Phad B', 'district_union_id' => $otherDistrictUnion->id, 'samiti_id' => $otherSamiti->id]);
+
+        $matched = ScholarshipApplication::factory()->submitted()->create([
+            'application_number' => 'SCH-MATCH-001',
+            'scheme_id' => $scheme->id,
+            'academic_session_id' => $session->id,
+            'district_union_id' => $districtUnion->id,
+            'samiti_id' => $samiti->id,
+            'phad_id' => $phad->id,
+            'student_name' => 'Filter Match Student',
+            'student_aadhaar' => '123456789012',
+        ]);
+        $excluded = ScholarshipApplication::factory()->submitted()->create([
+            'application_number' => 'SCH-OTHER-001',
+            'scheme_id' => $scheme->id,
+            'academic_session_id' => $otherSession->id,
+            'district_union_id' => $otherDistrictUnion->id,
+            'samiti_id' => $otherSamiti->id,
+            'phad_id' => $otherPhad->id,
+            'student_name' => 'Another Student',
+            'student_aadhaar' => '999999999999',
+        ]);
+
+        DB::table('scholarship_workflow_transitions')->insert([
+            [
+                'scholarship_application_id' => $matched->id,
+                'to_application_state' => 'in_workflow',
+                'to_workflow_state' => 'pending_samiti',
+                'to_workflow_stage' => 'samiti',
+                'to_payment_state' => 'wallet_success',
+                'to_approval_state' => 'pending',
+                'action' => 'recommend',
+                'acted_by' => $user->id,
+                'acted_by_role' => 'Samiti',
+                'acted_at' => '2026-07-20 10:00:00',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'scholarship_application_id' => $excluded->id,
+                'to_application_state' => 'in_workflow',
+                'to_workflow_state' => 'pending_samiti',
+                'to_workflow_stage' => 'samiti',
+                'to_payment_state' => 'wallet_success',
+                'to_approval_state' => 'pending',
+                'action' => 'recommend',
+                'acted_by' => $user->id,
+                'acted_by_role' => 'VLE',
+                'acted_at' => '2026-07-21 10:00:00',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+        ]);
+
+        $this->get(route('applications.index', [
+            'scheme' => $scheme->id,
+            'academic_session_id' => $session->id,
+            'district_union_id' => $districtUnion->id,
+            'samiti_id' => $samiti->id,
+            'phad_id' => $phad->id,
+            'application_number' => 'MATCH',
+            'aadhaar_number' => '123456789012',
+            'student_name' => 'Filter Match',
+            'last_action_from_date' => '2026-07-20',
+            'last_action_to_date' => '2026-07-20',
+            'last_action_role' => 'Samiti',
+            'status' => ScholarshipApplicationStatus::PaymentCompleted->value,
+            'q' => 'Another',
+        ]))
+            ->assertOk()
+            ->assertSee('SCH-MATCH-001')
+            ->assertDontSee('SCH-OTHER-001')
+            ->assertDontSee('Current Status')
+            ->assertDontSee('Current Workflow Level');
     }
 
     public function test_scholarship_payment_attempts_are_independent_from_wallet_payment(): void

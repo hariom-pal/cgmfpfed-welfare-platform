@@ -6,13 +6,13 @@ namespace App\Http\Controllers;
 
 use App\Domains\Scholarship\Contracts\ScholarshipRepositoryInterface;
 use App\Domains\Scholarship\Contracts\ScholarshipServiceInterface;
-use App\Domains\Scholarship\Enums\ScholarshipApplicationStatus;
-use App\Domains\Scholarship\Enums\WorkflowStage;
 use App\Models\AcademicSession;
+use App\Models\DistrictUnion;
+use App\Models\Phad;
+use App\Models\Samiti;
 use App\Models\Scheme;
 use App\Models\ScholarshipApplication;
 use App\Models\ScholarshipWalletTransaction;
-use App\Services\ApplicationCategoryService;
 use App\Services\RoleService;
 use App\Services\ScholarshipSessionService;
 use App\Services\ScholarshipViewModelService;
@@ -31,7 +31,6 @@ class ScholarshipController extends Controller
         private readonly ScholarshipServiceInterface $service,
         private readonly ScholarshipViewModelService $viewModels,
         private readonly RoleService $roles,
-        private readonly ApplicationCategoryService $categories,
         private readonly ScholarshipSessionService $sessions,
     ) {}
 
@@ -42,11 +41,7 @@ class ScholarshipController extends Controller
         $filters = $this->applicationFilters($request);
 
         if (! isset($filters['scheme_id'])) {
-            $selectionQuery = array_filter([
-                'category' => $filters['category'] ?? null,
-            ], fn (mixed $value): bool => filled($value));
-
-            return view('scholarship.select_scheme', $this->viewModels->schemeSelection('list', $selectionQuery));
+            return view('scholarship.select_scheme', $this->viewModels->schemeSelection('list'));
         }
 
         $request->session()->put('current_scheme_id', $filters['scheme_id']);
@@ -55,12 +50,12 @@ class ScholarshipController extends Controller
             'applications' => $this->applications->paginateFor($request->user(), $filters, 20),
             'schemes' => Scheme::query()->where('is_active', true)->orderBy('name')->get(),
             'sessions' => AcademicSession::query()->orderByDesc('start_date')->get(),
-            'statuses' => $this->statusOptions(),
-            'workflowStages' => $this->workflowStageOptions(),
+            'districtUnions' => DistrictUnion::query()->where('is_active', true)->orderBy('name')->get(['id', 'name']),
+            'samitis' => $this->samitiOptions($filters),
+            'phads' => $this->phadOptions($filters),
+            'lastActionRoles' => $this->lastActionRoles(),
             'filters' => $filters,
             'selectedScheme' => Scheme::query()->find($filters['scheme_id']),
-            'categories' => $this->categories->labels(),
-            'selectedCategory' => $this->categories->normalize($filters['category'] ?? null),
             'breadcrumbs' => ['Operations' => null, 'Applications' => null],
         ]);
     }
@@ -369,23 +364,15 @@ class ScholarshipController extends Controller
             $filters['scheme_id'] = $request->query('scheme');
         }
 
-        if (! isset($filters['application_id']) && $request->filled('application')) {
-            $filters['application_id'] = $request->query('application');
+        if (! isset($filters['application_number']) && $request->filled('application')) {
+            $filters['application_number'] = $request->query('application');
         }
 
         if (! isset($filters['aadhaar_number']) && $request->filled('student_aadhaar')) {
             $filters['aadhaar_number'] = $request->query('student_aadhaar');
         }
 
-        if (! isset($filters['current_status']) && $request->filled('status')) {
-            $filters['current_status'] = $request->query('status');
-        }
-
-        if (! isset($filters['category']) && $request->filled('status_bucket')) {
-            $filters['category'] = $request->query('status_bucket');
-        }
-
-        foreach (['scheme_id', 'academic_session_id', 'scholarship_session_id', 'current_status'] as $integerFilter) {
+        foreach (['scheme_id', 'academic_session_id', 'district_union_id', 'samiti_id', 'phad_id'] as $integerFilter) {
             if (isset($filters[$integerFilter]) && filled($filters[$integerFilter])) {
                 $filters[$integerFilter] = (int) $filters[$integerFilter];
             } else {
@@ -393,7 +380,7 @@ class ScholarshipController extends Controller
             }
         }
 
-        foreach (['application_id', 'aadhaar_number', 'workflow_stage', 'last_action_from_date', 'last_action_to_date', 'q'] as $textFilter) {
+        foreach (['application_number', 'aadhaar_number', 'student_name', 'last_action_from_date', 'last_action_to_date', 'last_action_role'] as $textFilter) {
             if (isset($filters[$textFilter]) && filled($filters[$textFilter])) {
                 $filters[$textFilter] = trim((string) $filters[$textFilter]);
             } else {
@@ -401,28 +388,43 @@ class ScholarshipController extends Controller
             }
         }
 
-        $filters['category'] = $this->categories->normalize($filters['category'] ?? null);
-
         return $filters;
     }
 
     /**
      * @return array<int, string>
      */
-    private function statusOptions(): array
+    private function samitiOptions(array $filters): mixed
     {
-        return collect(ScholarshipApplicationStatus::cases())
-            ->mapWithKeys(fn (ScholarshipApplicationStatus $status): array => [$status->value => $status->label()])
-            ->all();
+        return Samiti::query()
+            ->where('is_active', true)
+            ->when($filters['district_union_id'] ?? null, fn ($query, int $districtUnionId) => $query->where('district_union_id', $districtUnionId))
+            ->orderBy('name')
+            ->get(['id', 'name', 'district_union_id']);
+    }
+
+    private function phadOptions(array $filters): mixed
+    {
+        return Phad::query()
+            ->where('is_active', true)
+            ->when($filters['samiti_id'] ?? null, fn ($query, int $samitiId) => $query->where('samiti_id', $samitiId))
+            ->when(! isset($filters['samiti_id']) && isset($filters['district_union_id']), fn ($query) => $query->whereRaw('1 = 0'))
+            ->orderBy('name')
+            ->get(['id', 'name', 'samiti_id']);
     }
 
     /**
      * @return array<string, string>
      */
-    private function workflowStageOptions(): array
+    private function lastActionRoles(): array
     {
-        return collect(WorkflowStage::cases())
-            ->mapWithKeys(fn (WorkflowStage $stage): array => [$stage->value => str($stage->value)->replace('_', ' ')->title()->toString()])
-            ->all();
+        return [
+            'VLE' => 'VLE',
+            'Samiti' => 'Samiti',
+            'Investigation Commitee' => 'IC',
+            'District Union' => 'District Union',
+            'Super Admin' => 'HQ',
+            'Accounts' => 'Accounts',
+        ];
     }
 }

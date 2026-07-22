@@ -16,6 +16,11 @@ interface ScholarshipRepositoryInterface
     /**
      * @param  array<string, mixed>  $filters
      */
+    public function filteredQueryFor(User $user, array $filters = []): Builder;
+
+    /**
+     * @param  array<string, mixed>  $filters
+     */
     public function paginateFor(User $user, array $filters = [], int $perPage = 15): LengthAwarePaginator;
 
     public function findVisible(int $id, User $user): ScholarshipApplication;

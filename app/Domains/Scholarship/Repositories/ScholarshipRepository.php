@@ -8,7 +8,6 @@ use App\Domains\Scholarship\Contracts\ScholarshipRepositoryInterface;
 use App\Models\ScholarshipApplication;
 use App\Models\User;
 use App\Repositories\BaseRepository;
-use App\Services\ApplicationCategoryService;
 use App\Services\DataScopeService;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
@@ -17,7 +16,6 @@ final class ScholarshipRepository extends BaseRepository implements ScholarshipR
 {
     public function __construct(
         private readonly DataScopeService $scope,
-        private readonly ApplicationCategoryService $categories,
     ) {}
 
     public function queryVisibleFor(User $user): Builder
@@ -46,49 +44,46 @@ final class ScholarshipRepository extends BaseRepository implements ScholarshipR
 
     public function paginateFor(User $user, array $filters = [], int $perPage = 15): LengthAwarePaginator
     {
+        return $this->filteredQueryFor($user, $filters)
+            ->paginate($perPage)
+            ->withQueryString();
+    }
+
+    public function filteredQueryFor(User $user, array $filters = []): Builder
+    {
         $query = $this->queryVisibleFor($user);
 
         $query
-            ->when($filters['status'] ?? null, fn (Builder $builder, mixed $status) => $builder->where('status', $status))
-            ->when($filters['current_status'] ?? null, fn (Builder $builder, mixed $status) => $builder->where('status', $status))
-            ->when($filters['workflow_stage'] ?? null, fn (Builder $builder, mixed $stage) => $builder->where('workflow_stage', $stage))
             ->when($filters['scheme_id'] ?? null, fn (Builder $builder, mixed $schemeId) => $builder->where('scheme_id', $schemeId))
             ->when($filters['academic_session_id'] ?? null, fn (Builder $builder, mixed $sessionId) => $builder->where('academic_session_id', $sessionId))
-            ->when($filters['scholarship_session_id'] ?? null, fn (Builder $builder, mixed $sessionId) => $builder->where('scholarship_session_id', $sessionId))
-            ->when($filters['student_aadhaar'] ?? null, fn (Builder $builder, mixed $aadhaar) => $builder->where('student_aadhaar', $aadhaar))
+            ->when($filters['district_union_id'] ?? null, fn (Builder $builder, mixed $districtUnionId) => $builder->where('district_union_id', $districtUnionId))
+            ->when($filters['samiti_id'] ?? null, fn (Builder $builder, mixed $samitiId) => $builder->where('samiti_id', $samitiId))
+            ->when($filters['phad_id'] ?? null, fn (Builder $builder, mixed $phadId) => $builder->where('phad_id', $phadId))
             ->when($filters['aadhaar_number'] ?? null, fn (Builder $builder, mixed $aadhaar) => $builder->where('student_aadhaar', $aadhaar))
-            ->when($filters['application_id'] ?? null, function (Builder $builder, mixed $applicationId): void {
-                $builder->where(function (Builder $nested) use ($applicationId): void {
-                    $nested
-                        ->where('id', $applicationId)
-                        ->orWhere('application_number', 'like', "%{$applicationId}%")
-                        ->orWhere('legacy_application_id', $applicationId);
-                });
-            })
+            ->when($filters['application_number'] ?? null, fn (Builder $builder, mixed $applicationNumber) => $builder->where('application_number', 'like', "%{$applicationNumber}%"))
+            ->when($filters['student_name'] ?? null, fn (Builder $builder, mixed $studentName) => $builder->where('student_name', 'like', "%{$studentName}%"))
             ->when($filters['last_action_from_date'] ?? null, function (Builder $builder, mixed $date): void {
-                $builder->whereRaw(
-                    '(select max(acted_at) from scholarship_workflow_transitions where scholarship_workflow_transitions.scholarship_application_id = scholarship_applications.id) >= ?',
-                    [$date.' 00:00:00'],
-                );
+                $this->whereLatestAction($builder, '>=', $date.' 00:00:00');
             })
             ->when($filters['last_action_to_date'] ?? null, function (Builder $builder, mixed $date): void {
-                $builder->whereRaw(
-                    '(select max(acted_at) from scholarship_workflow_transitions where scholarship_workflow_transitions.scholarship_application_id = scholarship_applications.id) <= ?',
-                    [$date.' 23:59:59'],
-                );
+                $this->whereLatestAction($builder, '<=', $date.' 23:59:59');
             })
-            ->when($filters['q'] ?? null, function (Builder $builder, mixed $search): void {
-                $builder->where(function (Builder $nested) use ($search): void {
-                    $nested
-                        ->where('student_name', 'like', "%{$search}%")
-                        ->orWhere('application_number', 'like', "%{$search}%")
-                        ->orWhere('student_aadhaar', 'like', "%{$search}%");
-                });
+            ->when($filters['last_action_role'] ?? null, function (Builder $builder, mixed $role): void {
+                $builder->whereRaw(
+                    '(select acted_by_role from scholarship_workflow_transitions where scholarship_workflow_transitions.scholarship_application_id = scholarship_applications.id order by acted_at desc, id desc limit 1) = ?',
+                    [$role],
+                );
             });
 
-        $this->categories->apply($query, $filters['category'] ?? null);
+        return $query;
+    }
 
-        return $query->paginate($perPage)->withQueryString();
+    private function whereLatestAction(Builder $builder, string $operator, string $datetime): void
+    {
+        $builder->whereRaw(
+            "(select max(acted_at) from scholarship_workflow_transitions where scholarship_workflow_transitions.scholarship_application_id = scholarship_applications.id) {$operator} ?",
+            [$datetime],
+        );
     }
 
     public function findVisible(int $id, User $user): ScholarshipApplication

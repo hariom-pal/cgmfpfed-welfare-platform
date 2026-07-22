@@ -43,6 +43,12 @@ No additional production scholarship table was left unmapped. Backup/clone table
 
 `ScholarshipSessionService` derives the Academic Session and scholarship processing session from the application date and `academic_sessions` master rows. It first matches `start_date <= application date <= end_date`, then falls back to the latest configured master session when seed data is sparse.
 
+The Academic Session master is reset to exactly:
+
+- `2023-2024`: 01-Aug-2023 to 31-Jul-2024
+- `2024-2025`: 01-Aug-2024 to 31-Jul-2025
+- `2025-2026`: 01-Aug-2025 to 31-Jul-2026, active
+
 New and updated applications now receive:
 
 - `academic_session_id`
@@ -50,6 +56,8 @@ New and updated applications now receive:
 - `scholarship_session` display snapshot from the matched master row
 
 The application form no longer posts editable `academic_session_id` or `scholarship_session`; Blade displays the derived values only. A one-time migration recalculates every existing migrated application's `academic_session_id` from its application date and the master date range.
+
+Application listing search is intentionally limited to Academic Session, Scheme, District Union, Samiti, Phad, Application Number, Aadhaar Number, Student Name, Last Action Date From/To, and Last Action Role. Last Action filters use `scholarship_workflow_transitions`, not application creation date.
 
 ## 6. Workflow Redesign
 

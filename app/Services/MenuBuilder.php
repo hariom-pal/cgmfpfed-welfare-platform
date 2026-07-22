@@ -45,12 +45,7 @@ final class MenuBuilder
                 'active' => ['applications.*'],
                 'children' => array_values(array_filter([
                     $this->routeItem('All Applications', 'applications.index', 'fa-regular fa-circle'),
-                    $this->roles->isVle($user) ? $this->routeItem('Add Application', 'applications.create', 'fa-regular fa-circle') : null,
-                    $this->routeItem('Pending at VLE', 'applications.index', 'fa-regular fa-circle', [], ['category' => 'pending-at-vle']),
-                    $this->routeItem('Under Process', 'applications.index', 'fa-regular fa-circle', [], ['category' => 'under-process']),
-                    $this->routeItem('Completed', 'applications.index', 'fa-regular fa-circle', [], ['category' => 'completed']),
-                    $this->routeItem('Failed', 'applications.index', 'fa-regular fa-circle', [], ['category' => 'failed']),
-                    $this->routeItem('Rejected', 'applications.index', 'fa-regular fa-circle', [], ['category' => 'rejected']),
+                    $this->roles->isVle($user) ? $this->routeItem('Add Application', 'applications.create', 'fa-regular fa-circle', ['applications.create', 'applications.create.scheme']) : null,
                 ])),
             ];
         }
@@ -142,7 +137,7 @@ final class MenuBuilder
     private function masterChildren(): array
     {
         return collect($this->masters->all())
-            ->map(fn (array $master): array => $this->routeItem($master['label'], 'masters.index', 'fa-regular fa-circle', [], ['masterKey' => $master['route']]))
+            ->map(fn (array $master): array => $this->routeItem($master['label'], 'masters.index', 'fa-regular fa-circle', ['masters.*'], ['masterKey' => $master['route']]))
             ->values()
             ->all();
     }

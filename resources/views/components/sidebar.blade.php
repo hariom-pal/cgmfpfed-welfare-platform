@@ -14,6 +14,7 @@
                         $matchesItem = function (array $menuItem): bool {
                             $patterns = $menuItem['active'] ?? [];
                             $parameters = $menuItem['parameters'] ?? [];
+                            $query = $menuItem['active_query'] ?? [];
 
                             if (! collect($patterns)->contains(fn (string $pattern): bool => request()->routeIs($pattern))) {
                                 return false;
@@ -21,6 +22,12 @@
 
                             foreach ($parameters as $key => $value) {
                                 if ((string) request()->route($key) !== (string) $value) {
+                                    return false;
+                                }
+                            }
+
+                            foreach ($query as $key => $value) {
+                                if ((string) request()->query($key) !== (string) $value) {
                                     return false;
                                 }
                             }

@@ -18,7 +18,6 @@ class ScholarshipReportController extends Controller
 
     public function index(Request $request): View
     {
-        $visible = $this->applications->queryVisibleFor($request->user());
         $filters = $request->query();
         $currentSchemeId = (int) ($request->query('scheme') ?: $request->session()->get('current_scheme_id'));
         $currentScheme = $currentSchemeId > 0 ? Scheme::query()->find($currentSchemeId) : null;
@@ -27,16 +26,16 @@ class ScholarshipReportController extends Controller
 
         if ($currentScheme) {
             $request->session()->put('current_scheme_id', $currentScheme->id);
-            $visible->where('scheme_id', $currentScheme->id);
             $filters['scheme_id'] = $currentScheme->id;
         }
 
         if ($currentAcademicSession) {
-            $visible->where('academic_session_id', $currentAcademicSession->id);
             $filters['academic_session_id'] = $currentAcademicSession->id;
         } else {
             unset($filters['academic_session_id']);
         }
+
+        $visible = $this->applications->filteredQueryFor($request->user(), $filters);
 
         $statusRows = (clone $visible)
             ->get(['status_label'])

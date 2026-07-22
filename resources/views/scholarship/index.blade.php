@@ -21,15 +21,6 @@
 
         <form method="GET" class="row g-2 align-items-end mb-3">
             <input type="hidden" name="scheme" value="{{ $filters['scheme_id'] }}">
-            <input type="hidden" name="category" value="{{ $selectedCategory }}">
-            <div class="col-md-3">
-                <label class="form-label" for="application_id">Application ID</label>
-                <input class="form-control" id="application_id" name="application_id" value="{{ $filters['application_id'] ?? '' }}">
-            </div>
-            <div class="col-md-3">
-                <label class="form-label" for="aadhaar_number">Aadhaar Number</label>
-                <input class="form-control" id="aadhaar_number" name="aadhaar_number" value="{{ $filters['aadhaar_number'] ?? '' }}" maxlength="12">
-            </div>
             <div class="col-md-3">
                 <label class="form-label" for="academic_session_id">Academic Session</label>
                 <select class="form-select" id="academic_session_id" name="academic_session_id">
@@ -40,20 +31,50 @@
                 </select>
             </div>
             <div class="col-md-3">
-                <label class="form-label" for="current_status">Current Status</label>
-                <select class="form-select" id="current_status" name="current_status">
+                <label class="form-label" for="district_union_id">District Union</label>
+                <select class="form-select" id="district_union_id" name="district_union_id">
                     <option value="">All</option>
-                    @foreach($statuses as $value => $label)
-                        <option value="{{ $value }}" @selected(($filters['current_status'] ?? '') === $value)>{{ $label }}</option>
+                    @foreach($districtUnions as $union)
+                        <option value="{{ $union->id }}" @selected(($filters['district_union_id'] ?? '') == $union->id)>{{ $union->name }}</option>
                     @endforeach
                 </select>
             </div>
             <div class="col-md-3">
-                <label class="form-label" for="workflow_stage">Current Workflow Level</label>
-                <select class="form-select" id="workflow_stage" name="workflow_stage">
+                <label class="form-label" for="samiti_id">Samiti</label>
+                <select class="form-select" id="samiti_id" name="samiti_id" data-selected="{{ $filters['samiti_id'] ?? '' }}">
                     <option value="">All</option>
-                    @foreach($workflowStages as $value => $label)
-                        <option value="{{ $value }}" @selected(($filters['workflow_stage'] ?? '') === $value)>{{ $label }}</option>
+                    @foreach($samitis as $samiti)
+                        <option value="{{ $samiti->id }}" @selected(($filters['samiti_id'] ?? '') == $samiti->id)>{{ $samiti->name }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label" for="phad_id">Phad</label>
+                <select class="form-select" id="phad_id" name="phad_id" data-selected="{{ $filters['phad_id'] ?? '' }}">
+                    <option value="">All</option>
+                    @foreach($phads as $phad)
+                        <option value="{{ $phad->id }}" @selected(($filters['phad_id'] ?? '') == $phad->id)>{{ $phad->name }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label" for="application_number">Application Number</label>
+                <input class="form-control" id="application_number" name="application_number" value="{{ $filters['application_number'] ?? '' }}">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label" for="aadhaar_number">Aadhaar Number</label>
+                <input class="form-control" id="aadhaar_number" name="aadhaar_number" value="{{ $filters['aadhaar_number'] ?? '' }}" maxlength="12">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label" for="student_name">Student Name</label>
+                <input class="form-control" id="student_name" name="student_name" value="{{ $filters['student_name'] ?? '' }}">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label" for="last_action_role">Last Action Role</label>
+                <select class="form-select" id="last_action_role" name="last_action_role">
+                    <option value="">All</option>
+                    @foreach($lastActionRoles as $value => $label)
+                        <option value="{{ $value }}" @selected(($filters['last_action_role'] ?? '') === $value)>{{ $label }}</option>
                     @endforeach
                 </select>
             </div>
@@ -65,23 +86,11 @@
                 <label class="form-label" for="last_action_to_date">Last Action To</label>
                 <input class="form-control" type="date" id="last_action_to_date" name="last_action_to_date" value="{{ $filters['last_action_to_date'] ?? '' }}">
             </div>
-            <div class="col-md-3">
-                <label class="form-label" for="q">Search</label>
-                <input class="form-control" id="q" name="q" value="{{ $filters['q'] ?? '' }}" placeholder="Name or application">
-            </div>
             <div class="col-md-3 d-flex gap-2">
                 <button class="btn btn-outline-primary" type="submit"><i class="fa-solid fa-magnifying-glass me-1"></i>Search</button>
                 <a class="btn btn-outline-secondary" href="{{ route('applications.index', ['scheme' => $filters['scheme_id']]) }}">Reset</a>
             </div>
         </form>
-
-        <ul class="nav nav-tabs mb-3">
-            @foreach($categories as $key => $label)
-                <li class="nav-item">
-                    <a @class(['nav-link', 'active' => $selectedCategory === $key]) href="{{ route('applications.index', ['scheme' => $filters['scheme_id'], 'category' => $key]) }}">{{ $label }}</a>
-                </li>
-            @endforeach
-        </ul>
 
         <div class="table-responsive">
             <table class="table table-hover align-middle mb-0">
@@ -112,9 +121,9 @@
                         <td>{{ $application->latestWorkflowTransition?->acted_at?->format('d M Y H:i') ?? 'N/A' }}</td>
                         <td class="text-end">₹{{ number_format((float) $application->amount, 2) }}</td>
                         <td class="text-end">
-                            <a class="btn btn-sm btn-outline-primary" href="{{ route('applications.show', ['application' => $application, 'scheme' => $filters['scheme_id'], 'category' => $selectedCategory]) }}"><i class="fa-regular fa-eye"></i></a>
+                            <a class="btn btn-sm btn-outline-primary" href="{{ route('applications.show', ['application' => $application, 'scheme' => $filters['scheme_id']]) }}"><i class="fa-regular fa-eye"></i></a>
                             @can('update', $application)
-                                <a class="btn btn-sm btn-outline-secondary" href="{{ route('applications.edit', ['application' => $application, 'scheme' => $filters['scheme_id'], 'category' => $selectedCategory]) }}"><i class="fa-regular fa-pen-to-square"></i></a>
+                                <a class="btn btn-sm btn-outline-secondary" href="{{ route('applications.edit', ['application' => $application, 'scheme' => $filters['scheme_id']]) }}"><i class="fa-regular fa-pen-to-square"></i></a>
                             @endcan
                         </td>
                     </tr>
@@ -127,3 +136,41 @@
         <div class="pt-3"><x-pagination :records="$applications" /></div>
     </x-card>
 @endsection
+
+@push('scripts')
+    <script>
+        (() => {
+            const districtUnion = document.getElementById('district_union_id');
+            const samiti = document.getElementById('samiti_id');
+            const phad = document.getElementById('phad_id');
+
+            const fill = (select, items, selected = '') => {
+                select.innerHTML = '<option value="">All</option>';
+                items.forEach((item) => {
+                    const option = document.createElement('option');
+                    option.value = item.id;
+                    option.textContent = item.name;
+                    option.selected = String(item.id) === String(selected);
+                    select.appendChild(option);
+                });
+            };
+
+            const load = async (target, endpoint, params, selected = '') => {
+                const query = new URLSearchParams(params);
+                const response = await fetch(`/api/scholarship/lookups/${endpoint}?${query.toString()}`, {
+                    headers: {'Accept': 'application/json'},
+                });
+                fill(target, await response.json(), selected);
+            };
+
+            districtUnion?.addEventListener('change', async () => {
+                await load(samiti, 'samitis', {district_union_id: districtUnion.value});
+                fill(phad, []);
+            });
+
+            samiti?.addEventListener('change', () => {
+                load(phad, 'phads', {samiti_id: samiti.value});
+            });
+        })();
+    </script>
+@endpush

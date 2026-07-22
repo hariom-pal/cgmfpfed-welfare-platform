@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
-use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
@@ -175,31 +174,18 @@ final class LegacyMasterDataSeeder extends Seeder
 
     private function seedAcademicSessions(): void
     {
-        $sessions = DB::table('legacy_application')
-            ->select('scholarship_session as name')
-            ->whereNotNull('scholarship_session')
-            ->where('scholarship_session', '!=', '')
-            ->union(
-                DB::table('legacy_application')
-                    ->select('first_year_session as name')
-                    ->whereNotNull('first_year_session')
-                    ->where('first_year_session', '!=', '')
-            )
-            ->pluck('name')
-            ->unique()
-            ->values();
-
-        $id = 1;
-        foreach ($sessions as $session) {
-            [$startDate, $endDate] = $this->datesForSession((string) $session);
-
+        foreach ([
+            ['2023-2024', '2023-08-01', '2024-07-31', false],
+            ['2024-2025', '2024-08-01', '2025-07-31', false],
+            ['2025-2026', '2025-08-01', '2026-07-31', true],
+        ] as $index => [$name, $startDate, $endDate, $isActive]) {
             DB::table('academic_sessions')->insert([
-                'id' => $id++,
+                'id' => $index + 1,
                 'uuid' => (string) Str::uuid(),
-                'name' => $session,
+                'name' => $name,
                 'start_date' => $startDate,
                 'end_date' => $endDate,
-                'is_active' => false,
+                'is_active' => $isActive,
                 'created_by' => null,
                 'updated_by' => null,
                 'deleted_by' => null,
@@ -208,27 +194,6 @@ final class LegacyMasterDataSeeder extends Seeder
                 'deleted_at' => null,
             ]);
         }
-    }
-
-    /**
-     * @return array{0: string, 1: string}
-     */
-    private function datesForSession(string $session): array
-    {
-        if (preg_match('/^(20\\d{2})\\D?(\\d{2})$/', $session, $matches) === 1) {
-            $startYear = (int) $matches[1];
-            $endYear = 2000 + (int) $matches[2];
-
-            return [
-                Carbon::create($startYear, 4, 1)->toDateString(),
-                Carbon::create($endYear, 3, 31)->toDateString(),
-            ];
-        }
-
-        return [
-            Carbon::now()->startOfYear()->toDateString(),
-            Carbon::now()->endOfYear()->toDateString(),
-        ];
     }
 
     private function districtIdFromLegacyCode(mixed $legacyCode): ?int
