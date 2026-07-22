@@ -53,15 +53,25 @@ final class AuthorizationFoundationTest extends TestCase
 
         $menu = collect(app(MenuBuilder::class)->buildFor($admin));
         $labels = $menu->pluck('label')->all();
+        $masterChildren = collect($menu->firstWhere('label', 'Masters')['children'] ?? [])->pluck('label')->all();
+        $scholarshipChildren = collect($menu->firstWhere('label', 'Scholarship')['children'] ?? [])->pluck('label')->all();
+        $beemaChildren = collect($menu->firstWhere('label', 'Beema')['children'] ?? [])->pluck('label')->all();
         $otherChildren = collect($menu->firstWhere('label', 'Other Modules')['children'] ?? [])->pluck('label')->all();
 
         $this->assertSame('Dashboard', $labels[0]);
         $this->assertSame('Masters', $labels[1]);
+        $this->assertSame(['Dashboard', 'Masters', 'Scholarship', 'Beema', 'Reports', 'User Management', 'Other Modules'], $labels);
         $this->assertContains('Scholarship', $labels);
         $this->assertContains('Beema', $labels);
         $this->assertContains('Reports', $labels);
         $this->assertContains('User Management', $labels);
         $this->assertContains('Other Modules', $labels);
+        $this->assertSame(
+            collect(config('masters'))->pluck('label')->map(fn (?string $label, string $key): string => $label ?? str($key)->headline()->toString())->values()->all(),
+            $masterChildren,
+        );
+        $this->assertNotContains('Masters', $scholarshipChildren);
+        $this->assertNotContains('Masters', $beemaChildren);
         $this->assertContains('Workflow Batches', $otherChildren);
         $this->assertContains('Payment', $otherChildren);
     }
@@ -72,6 +82,8 @@ final class AuthorizationFoundationTest extends TestCase
         $this->grant($districtUnion, [35]);
 
         $this->assertFalse(app(PermissionService::class)->can($districtUnion, 'masters.manage'));
+        $labels = collect(app(MenuBuilder::class)->buildFor($districtUnion))->pluck('label')->all();
+        $this->assertNotContains('Masters', $labels);
 
         $this->actingAs($districtUnion);
         $this->get(route('masters.index', 'schemes'))->assertForbidden();

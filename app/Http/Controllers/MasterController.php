@@ -11,6 +11,7 @@ use App\Services\MasterService;
 use App\Support\MasterRegistry;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\View\View;
 
 final class MasterController extends Controller
@@ -104,7 +105,9 @@ final class MasterController extends Controller
     private function context(string $masterKey): array
     {
         $master = $this->registry->get($masterKey);
-        $repository = new MasterRepository(app($master['model']), $master);
+        $model = app($master['model']);
+        Gate::authorize('manage', $model);
+        $repository = new MasterRepository($model, $master);
 
         return [
             'masterKey' => $masterKey,

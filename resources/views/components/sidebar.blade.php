@@ -11,12 +11,25 @@
             <ul class="nav sidebar-menu flex-column nav-sidebar" data-lte-toggle="treeview" role="menu">
                 @foreach($menuItems ?? [] as $item)
                     @php
+                        $matchesItem = function (array $menuItem): bool {
+                            $patterns = $menuItem['active'] ?? [];
+                            $parameters = $menuItem['parameters'] ?? [];
+
+                            if (! collect($patterns)->contains(fn (string $pattern): bool => request()->routeIs($pattern))) {
+                                return false;
+                            }
+
+                            foreach ($parameters as $key => $value) {
+                                if ((string) request()->route($key) !== (string) $value) {
+                                    return false;
+                                }
+                            }
+
+                            return true;
+                        };
                         $children = $item['children'] ?? [];
-                        $activePatterns = $item['active'] ?? [];
-                        $isActive = collect($activePatterns)->contains(fn (string $pattern): bool => request()->routeIs($pattern));
-                        $childActive = collect($children)->contains(function (array $child): bool {
-                            return collect($child['active'] ?? [])->contains(fn (string $pattern): bool => request()->routeIs($pattern));
-                        });
+                        $isActive = $matchesItem($item);
+                        $childActive = collect($children)->contains(fn (array $child): bool => $matchesItem($child));
                     @endphp
                     <li @class(['nav-item', 'menu-open' => $children !== [] && ($isActive || $childActive)])>
                         <a href="{{ $item['url'] ?? '#' }}" @class(['nav-link', 'active' => $isActive || $childActive, 'disabled' => $item['disabled'] ?? false]) @if($item['external'] ?? false) target="_blank" rel="noopener" @endif>
@@ -32,10 +45,10 @@
                             <ul class="nav nav-treeview">
                                 @foreach($children as $child)
                                     @php
-                                        $childActive = collect($child['active'] ?? [])->contains(fn (string $pattern): bool => request()->routeIs($pattern));
+                                        $childActive = $matchesItem($child);
                                     @endphp
                                     <li class="nav-item">
-                                        <a href="{{ $child['url'] ?? '#' }}" @class(['nav-link', 'active' => $childActive, 'disabled' => $child['disabled'] ?? false])>
+                                        <a href="{{ $child['url'] ?? '#' }}" @class(['nav-link', 'active' => $childActive, 'disabled' => $child['disabled'] ?? false]) @if($child['external'] ?? false) target="_blank" rel="noopener" @endif>
                                             <i class="nav-icon {{ $child['icon'] }}"></i>
                                             <p>{{ $child['label'] }}</p>
                                         </a>

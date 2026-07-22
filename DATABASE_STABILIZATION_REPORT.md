@@ -87,15 +87,27 @@
   - Village
   - City
   - Ward
+  - University
+  - Institute
+  - Occupation
+  - Bank
+  - Branch
   - Document Type
   - Workflow Status
   - Rejection Reason
   - Notification Template
 - Masters remain under one protected module and are not nested under Scholarship or Beema.
 
+Additional master menu correction:
+
+- The actual sidebar source was verified as `AppServiceProvider` view composer -> `MenuBuilder::buildFor()` -> `resources/views/components/sidebar.blade.php`.
+- Masters is now rendered as a top-level sidebar tree immediately after Dashboard.
+- Masters children are generated from `MasterRegistry`, so every centralized master appears in the sidebar and routes to the reusable Master CRUD.
+- Sidebar active-state logic is parameter-aware, preventing duplicate active master children.
+
 ## 10. Remaining Issues
 
-- Bank, Branch, University, Institute, Occupation, and Beema-specific masters are not yet present as first-class Laravel master tables/models in this codebase. They should be added from the production schema as dedicated migrations/models before enabling CRUD.
+- Beema-specific masters beyond common Welfare Platform masters should be added when the Beema module database is migrated into this Laravel application.
 - Import seeders still contain raw SQL by design because they load and normalize the production SQL dump. They are not used by request-time application logic.
 
 ## Verification
@@ -103,4 +115,4 @@
 - `php artisan migrate`
 - `./vendor/bin/pint --dirty`
 - `php artisan test`
-- Result: 30 tests passed, 168 assertions.
+- Result: 30 tests passed, 210 assertions.

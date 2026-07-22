@@ -1,7 +1,9 @@
 <?php
 
 use App\Models\AcademicSession;
+use App\Models\Bank;
 use App\Models\Block;
+use App\Models\Branch;
 use App\Models\Caste;
 use App\Models\Category;
 use App\Models\Circle;
@@ -11,61 +13,20 @@ use App\Models\District;
 use App\Models\DistrictUnion;
 use App\Models\DocumentType;
 use App\Models\GramPanchayat;
+use App\Models\Institute;
 use App\Models\NotificationTemplate;
+use App\Models\Occupation;
 use App\Models\Phad;
 use App\Models\RejectionReason;
 use App\Models\Religion;
 use App\Models\Samiti;
 use App\Models\Scheme;
+use App\Models\University;
 use App\Models\Village;
 use App\Models\Ward;
 use App\Models\WorkflowStatus;
 
 return [
-    'academic-sessions' => [
-        'label' => 'Academic Session',
-        'model' => AcademicSession::class,
-        'table' => 'academic_sessions',
-        'route' => 'academic-sessions',
-        'fields' => [
-            ['name' => 'name', 'label' => 'Name', 'type' => 'text', 'required' => true, 'unique' => true, 'max' => 20],
-            ['name' => 'start_date', 'label' => 'Start Date', 'type' => 'date', 'required' => true],
-            ['name' => 'end_date', 'label' => 'End Date', 'type' => 'date', 'required' => true],
-        ],
-        'display_columns' => ['name', 'start_date', 'end_date'],
-        'search_columns' => ['name'],
-        'sort_columns' => ['name', 'start_date', 'end_date', 'is_active', 'created_at'],
-    ],
-    'schemes' => [
-        'label' => 'Scheme',
-        'model' => Scheme::class,
-        'table' => 'schemes',
-        'route' => 'schemes',
-    ],
-    'courses' => [
-        'label' => 'Course',
-        'model' => Course::class,
-        'table' => 'courses',
-        'route' => 'courses',
-    ],
-    'categories' => [
-        'label' => 'Category',
-        'model' => Category::class,
-        'table' => 'categories',
-        'route' => 'categories',
-    ],
-    'castes' => [
-        'label' => 'Caste',
-        'model' => Caste::class,
-        'table' => 'castes',
-        'route' => 'castes',
-    ],
-    'religions' => [
-        'label' => 'Religion',
-        'model' => Religion::class,
-        'table' => 'religions',
-        'route' => 'religions',
-    ],
     'districts' => [
         'label' => 'District',
         'model' => District::class,
@@ -90,7 +51,7 @@ return [
         'route' => 'district-unions',
     ],
     'samitis' => [
-        'label' => 'Samiti',
+        'label' => 'Primary Society / Samiti',
         'model' => Samiti::class,
         'table' => 'samitis',
         'route' => 'samitis',
@@ -155,6 +116,88 @@ return [
             ['name' => 'name', 'label' => 'Name', 'type' => 'text', 'required' => true, 'unique' => true, 'max' => 255],
         ],
         'display_columns' => ['legacy_code', 'name'],
+    ],
+    'schemes' => [
+        'label' => 'Scholarship Scheme',
+        'model' => Scheme::class,
+        'table' => 'schemes',
+        'route' => 'schemes',
+    ],
+    'academic-sessions' => [
+        'label' => 'Academic Session',
+        'model' => AcademicSession::class,
+        'table' => 'academic_sessions',
+        'route' => 'academic-sessions',
+        'fields' => [
+            ['name' => 'name', 'label' => 'Name', 'type' => 'text', 'required' => true, 'unique' => true, 'max' => 20],
+            ['name' => 'start_date', 'label' => 'Start Date', 'type' => 'date', 'required' => true],
+            ['name' => 'end_date', 'label' => 'End Date', 'type' => 'date', 'required' => true],
+        ],
+        'display_columns' => ['name', 'start_date', 'end_date'],
+        'search_columns' => ['name'],
+        'sort_columns' => ['name', 'start_date', 'end_date', 'is_active', 'created_at'],
+    ],
+    'courses' => [
+        'label' => 'Course',
+        'model' => Course::class,
+        'table' => 'courses',
+        'route' => 'courses',
+    ],
+    'universities' => [
+        'label' => 'University',
+        'model' => University::class,
+        'table' => 'universities',
+        'route' => 'universities',
+    ],
+    'institutes' => [
+        'label' => 'Institute',
+        'model' => Institute::class,
+        'table' => 'institutes',
+        'route' => 'institutes',
+    ],
+    'categories' => [
+        'label' => 'Category',
+        'model' => Category::class,
+        'table' => 'categories',
+        'route' => 'categories',
+    ],
+    'castes' => [
+        'label' => 'Caste',
+        'model' => Caste::class,
+        'table' => 'castes',
+        'route' => 'castes',
+    ],
+    'religions' => [
+        'label' => 'Religion',
+        'model' => Religion::class,
+        'table' => 'religions',
+        'route' => 'religions',
+    ],
+    'occupations' => [
+        'label' => 'Occupation',
+        'model' => Occupation::class,
+        'table' => 'occupations',
+        'route' => 'occupations',
+    ],
+    'banks' => [
+        'label' => 'Bank',
+        'model' => Bank::class,
+        'table' => 'banks',
+        'route' => 'banks',
+    ],
+    'branches' => [
+        'label' => 'Branch',
+        'model' => Branch::class,
+        'table' => 'branches',
+        'route' => 'branches',
+        'fields' => [
+            ['name' => 'code', 'label' => 'Code', 'type' => 'text', 'required' => true, 'unique' => true, 'max' => 40],
+            ['name' => 'name', 'label' => 'Name', 'type' => 'text', 'required' => true, 'unique' => true, 'max' => 255],
+            ['name' => 'ifsc_code', 'label' => 'IFSC Code', 'type' => 'text', 'required' => false, 'unique' => false, 'max' => 20],
+            ['name' => 'description', 'label' => 'Description', 'type' => 'textarea', 'required' => false, 'max' => 2000],
+        ],
+        'display_columns' => ['code', 'name', 'ifsc_code'],
+        'search_columns' => ['code', 'name', 'ifsc_code', 'description'],
     ],
     'document-types' => [
         'label' => 'Document Type',

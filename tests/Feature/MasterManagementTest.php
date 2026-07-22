@@ -36,7 +36,15 @@ final class MasterManagementTest extends TestCase
     {
         $this->actingAsMasterManager();
 
-        $this->get(route('dashboard'))->assertOk()->assertSee('Operational overview');
+        $dashboard = $this->get(route('dashboard'))->assertOk()->assertSee('Operational overview');
+        $dashboard->assertSeeInOrder(['Dashboard', 'Masters', 'Scholarship', 'Beema', 'Reports', 'User Management', 'Other Modules']);
+
+        foreach (config('masters') as $master) {
+            $dashboard->assertSee($master['label']);
+        }
+
+        preg_match_all('/<p>\s*Masters\s*(?:<i|<\/p>)/', $dashboard->getContent(), $matches);
+        $this->assertSame(1, count($matches[0]));
         $this->get(route('applications.index'))->assertOk()->assertSee('Select a Scheme to view applications');
         $this->get(route('workflow.index'))->assertOk()->assertSee('Scholarship Workflow');
 

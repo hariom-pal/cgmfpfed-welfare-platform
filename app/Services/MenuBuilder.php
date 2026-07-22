@@ -5,12 +5,14 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Models\User;
+use App\Support\MasterRegistry;
 
 final class MenuBuilder
 {
     public function __construct(
         private readonly RoleService $roles,
         private readonly PermissionService $permissions,
+        private readonly MasterRegistry $masters,
     ) {}
 
     /**
@@ -27,7 +29,13 @@ final class MenuBuilder
         ];
 
         if ($this->permissions->can($user, 'masters.manage')) {
-            $items[] = $this->routeOrDisabledItem('Masters', 'masters.index', 'fa-solid fa-table-list', ['masterKey' => 'schemes']);
+            $items[] = [
+                'label' => 'Masters',
+                'url' => '#',
+                'icon' => 'fa-solid fa-table-list',
+                'active' => ['masters.*'],
+                'children' => $this->masterChildren(),
+            ];
         }
 
         if ($this->permissions->can($user, 'applications.view')) {
@@ -126,6 +134,17 @@ final class MenuBuilder
     private function externalItem(string $label, string $url, string $icon): array
     {
         return ['label' => $label, 'url' => $url, 'icon' => $icon, 'external' => true];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function masterChildren(): array
+    {
+        return collect($this->masters->all())
+            ->map(fn (array $master): array => $this->routeItem($master['label'], 'masters.index', 'fa-regular fa-circle', [], ['masterKey' => $master['route']]))
+            ->values()
+            ->all();
     }
 
     /**

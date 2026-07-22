@@ -15,6 +15,7 @@ use App\Domains\Scholarship\Contracts\ScholarshipServiceInterface;
 use App\Domains\Scholarship\Repositories\ScholarshipRepository;
 use App\Domains\Scholarship\Services\ScholarshipService;
 use App\Models\ScholarshipApplication;
+use App\Policies\MasterPolicy;
 use App\Policies\ScholarshipApplicationPolicy;
 use App\Services\CscBridgeWalletService;
 use App\Services\CscConnectService;
@@ -69,6 +70,10 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Gate::policy(ScholarshipApplication::class, ScholarshipApplicationPolicy::class);
+
+        foreach (config('masters', []) as $master) {
+            Gate::policy($master['model'], MasterPolicy::class);
+        }
 
         foreach (array_keys(config('legacy_authorization.abilities', [])) as $ability) {
             Gate::define($ability, fn ($user): bool => app(PermissionService::class)->can($user, (string) $ability));
