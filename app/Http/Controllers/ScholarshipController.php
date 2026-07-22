@@ -80,6 +80,10 @@ class ScholarshipController extends Controller
         $application->load([
             'academicSession',
             'scheme',
+            'district',
+            'districtUnion',
+            'samiti',
+            'phad',
             'audits',
             'documents.uploader',
             'documents.replacer',

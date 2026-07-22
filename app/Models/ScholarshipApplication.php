@@ -97,6 +97,26 @@ class ScholarshipApplication extends Model
         return $this->belongsTo(Scheme::class);
     }
 
+    public function district(): BelongsTo
+    {
+        return $this->belongsTo(District::class);
+    }
+
+    public function districtUnion(): BelongsTo
+    {
+        return $this->belongsTo(DistrictUnion::class);
+    }
+
+    public function samiti(): BelongsTo
+    {
+        return $this->belongsTo(Samiti::class);
+    }
+
+    public function phad(): BelongsTo
+    {
+        return $this->belongsTo(Phad::class);
+    }
+
     public function applicant(): BelongsTo
     {
         return $this->belongsTo(User::class, 'applicant_user_id');

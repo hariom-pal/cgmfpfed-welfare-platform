@@ -230,10 +230,10 @@ final class CompleteLegacyDataMigrationSeeder extends Seeder
                         'submitted_by' => $this->userIdForCsc((string) $row->added_by),
                         'wallet_paid_at' => $row->payment_txn_status === '1' ? $createdAt : null,
                         'legacy_application_id' => (int) $row->id,
-                        'district_id' => $this->nullableInt($row->district),
+                        'district_id' => $this->districtIdFromCode($row->district),
                         'district_union_id' => $this->nullableInt($row->districtunion),
                         'samiti_id' => $this->nullableInt($row->samitiname),
-                        'phad_id' => $this->nullableInt($row->phadname),
+                        'phad_id' => $this->phadIdFromCode($row->phadname),
                         'tendupatta_data_source' => 'MANUAL',
                         'student_aadhaar' => $studentAadhaar,
                         'aadhaar_verified_student_name' => $this->text($row->student_name, 'Legacy Student '.$row->id),
@@ -778,6 +778,30 @@ final class CompleteLegacyDataMigrationSeeder extends Seeder
     private function nullableInt(mixed $value): ?int
     {
         return $value === null || $value === '' || $value === 0 || $value === '0' ? null : (int) $value;
+    }
+
+    private function districtIdFromCode(mixed $districtCode): ?int
+    {
+        $code = trim((string) $districtCode);
+        if ($code === '') {
+            return null;
+        }
+
+        $id = DB::table('districts')->where('code', 'DST-'.$code)->value('id');
+
+        return $id !== null ? (int) $id : $this->nullableInt($districtCode);
+    }
+
+    private function phadIdFromCode(mixed $phadCode): ?int
+    {
+        $code = trim((string) $phadCode);
+        if ($code === '') {
+            return null;
+        }
+
+        $id = DB::table('phads')->where('code', 'like', 'PHD-'.$code.'-%')->value('id');
+
+        return $id !== null ? (int) $id : $this->nullableInt($phadCode);
     }
 
     private function decimal(mixed $value): ?float

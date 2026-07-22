@@ -46,7 +46,8 @@ final class ScholarshipViewModelService
      */
     public function applicationDetails(ScholarshipApplication $application): array
     {
-        $legacy = $this->legacyDetailFor($application);
+        $legacyApplication = $this->legacyApplicationPayload($application);
+        $masters = $this->masterNames($application, $legacyApplication);
         $verification = $this->latestLegacyVerification($application);
         $documents = $application->currentDocuments->keyBy('document_type');
         $documentLabels = $this->productionDocumentLabels($application);
@@ -54,7 +55,7 @@ final class ScholarshipViewModelService
         return [
             'application' => $application,
             'breadcrumbs' => ['Applications' => route('applications.index'), 'Details' => null],
-            'sections' => $this->detailSections($application, $legacy),
+            'sections' => $this->detailSections($application, $masters, $legacyApplication),
             'documentLabels' => $documentLabels,
             'documentRows' => $this->documentRows($application, $documentLabels, $documents),
             'previewDocuments' => $this->previewDocuments($application, $documentLabels),
@@ -68,7 +69,7 @@ final class ScholarshipViewModelService
     /**
      * @return array<int, array{title: string, icon: string, fields: array<int, array{label: string, value: mixed, class?: string}>}>
      */
-    private function detailSections(ScholarshipApplication $application, array $legacy): array
+    private function detailSections(ScholarshipApplication $application, array $masters, array $legacyApplication): array
     {
         $schemeId = (int) $application->scheme_id;
         $isProfessional = in_array($schemeId, [3, 4], true);
@@ -80,16 +81,16 @@ final class ScholarshipViewModelService
                 'title' => 'Information Regarding Primary Society / प्राथमिक सोसायटी के संबंध में जानकारी',
                 'icon' => 'fa-regular fa-file-lines',
                 'fields' => array_values(array_filter([
-                    $this->field('Scheme / योजना', $this->value($legacy, 'scheme_name', $application->scheme?->name)),
+                    $this->field('Scheme / योजना', $application->scheme?->name),
                     $isProfessional ? $this->field('Select Education Year / शिक्षा वर्ष चुनें', $application->current_year_of_study) : null,
-                    $this->field('District Union / जिला संघ', $this->value($legacy, 'union_name')),
-                    $this->field('Samiti Name / समिति का नाम', $this->value($legacy, 'samiti_name')),
-                    $this->field('PHAD Name / फड़ का नाम', $this->value($legacy, 'phad_name')),
-                    $this->field('District / ज़िला', $this->value($legacy, 'district_name')),
-                    $this->field('Block / ब्लॉक', $this->value($legacy, 'block_name')),
-                    $application->area === 'Rural' ? $this->field('Gram Panchayat / ग्राम पंचायत', $this->value($legacy, 'gp_name')) : $this->field('City / शहर', $this->value($legacy, 'city_name')),
-                    $application->area === 'Rural' ? $this->field('Village / गाँव', $this->value($legacy, 'village_name')) : $this->field('Ward / वार्ड', $this->value($legacy, 'ward_name')),
-                    $application->area === 'Rural' ? null : $this->field('Ward Number / वार्ड संख्या', $this->value($legacy, 'ward_number', $application->ward_number)),
+                    $this->field('District Union / जिला संघ', $masters['district_union']),
+                    $this->field('Primary Society / समिति का नाम', $masters['samiti']),
+                    $this->field('PHAD Name / फड़ का नाम', $masters['phad']),
+                    $this->field('District / ज़िला', $masters['district']),
+                    $this->field('Block / ब्लॉक', $masters['block']),
+                    $application->area === 'Rural' ? $this->field('Gram Panchayat / ग्राम पंचायत', $masters['gram_panchayat']) : $this->field('City / शहर', $masters['city']),
+                    $application->area === 'Rural' ? $this->field('Village / गाँव', $masters['village']) : $this->field('Ward / वार्ड', $masters['ward']),
+                    $application->area === 'Rural' ? null : $this->field('Ward Number / वार्ड संख्या', $masters['ward_number']),
                 ])),
             ],
             [
@@ -108,11 +109,11 @@ final class ScholarshipViewModelService
                 'title' => 'Head of Family Bank Detail / परिवार के प्रमुख बैंक का विवरण',
                 'icon' => 'fa-solid fa-building-columns',
                 'fields' => [
-                    $this->field('Account Number / खाता संख्या', $this->value($legacy, 'haccountnumber', data_get($metadata, 'legacy_head_of_family_bank.account_number'))),
-                    $this->field('Account Holder Name / खाता धारक का नाम', $this->value($legacy, 'haccountname', data_get($metadata, 'legacy_head_of_family_bank.account_holder'))),
-                    $this->field('IFSC Code / आईएफएससी कोड', $this->value($legacy, 'hifsc', data_get($metadata, 'legacy_head_of_family_bank.ifsc'))),
-                    $this->field('Bank Name / बैंक का नाम', $this->value($legacy, 'hbankname', data_get($metadata, 'legacy_head_of_family_bank.bank_name'))),
-                    $this->field('Branch Name of Bank / बैंक की शाखा का नाम', $this->value($legacy, 'hbranch', data_get($metadata, 'legacy_head_of_family_bank.branch'))),
+                    $this->field('Account Number / खाता संख्या', $this->value($legacyApplication, 'haccountnumber', data_get($metadata, 'legacy_head_of_family_bank.account_number'))),
+                    $this->field('Account Holder Name / खाता धारक का नाम', $this->value($legacyApplication, 'haccountname', data_get($metadata, 'legacy_head_of_family_bank.account_holder'))),
+                    $this->field('IFSC Code / आईएफएससी कोड', $this->value($legacyApplication, 'hifsc', data_get($metadata, 'legacy_head_of_family_bank.ifsc'))),
+                    $this->field('Bank Name / बैंक का नाम', $this->value($legacyApplication, 'hbankname', data_get($metadata, 'legacy_head_of_family_bank.bank_name'))),
+                    $this->field('Branch Name of Bank / बैंक की शाखा का नाम', $this->value($legacyApplication, 'hbranch', data_get($metadata, 'legacy_head_of_family_bank.branch'))),
                 ],
             ];
         }
@@ -280,40 +281,114 @@ final class ScholarshipViewModelService
     /**
      * @return array<string, mixed>
      */
-    private function legacyDetailFor(ScholarshipApplication $application): array
+    private function legacyApplicationPayload(ScholarshipApplication $application): array
     {
-        if (! $application->legacy_application_id || ! Schema::hasTable('legacy_application')) {
+        if (! $application->legacy_application_id || ! Schema::hasTable('source_data_archives')) {
             return [];
         }
 
-        $row = DB::table('legacy_application as application')
-            ->leftJoin('legacy_schemes as schemes', 'application.scheme', '=', 'schemes.id')
-            ->leftJoin('legacy_districts as districts', 'application.district', '=', 'districts.district_code')
-            ->leftJoin('legacy_district_union as district_union', 'application.districtunion', '=', 'district_union.id')
-            ->leftJoin('legacy_samiti as samiti', 'application.samitiname', '=', 'samiti.id')
-            ->leftJoin('legacy_phads as phads', 'application.phadname', '=', 'phads.phad_code')
-            ->leftJoin('legacy_blocks as blocks', 'application.block', '=', 'blocks.block_code')
-            ->leftJoin('legacy_gram_panchayat as gram_panchayat', 'application.grampanchayat', '=', 'gram_panchayat.gp_code')
-            ->leftJoin('legacy_cities as cities', 'application.city', '=', 'cities.city_code')
-            ->leftJoin('legacy_wards as wards', 'application.ward', '=', 'wards.ward_code')
-            ->leftJoin('legacy_villages as villages', 'application.village', '=', 'villages.village_code')
-            ->where('application.id', $application->legacy_application_id)
-            ->select([
-                'application.*',
-                'schemes.name as scheme_name',
-                'districts.district_name',
-                'district_union.union_name',
-                'samiti.samiti_name',
-                'phads.phad_name',
-                'blocks.block_name',
-                'gram_panchayat.gp_name',
-                'cities.city_name',
-                'wards.ward_name',
-                'villages.village_name',
-            ])
+        $row = DB::table('source_data_archives')
+            ->where('source_table', 'application')
+            ->where('source_primary_key', (string) $application->legacy_application_id)
             ->first();
 
-        return $row ? (array) $row : [];
+        return $row ? (array) json_decode((string) $row->payload, true) : [];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function masterNames(ScholarshipApplication $application, array $legacyApplication): array
+    {
+        $districtCode = $this->value($legacyApplication, 'district', $this->districtCodeFromApplication($application));
+        $phadCode = $this->value($legacyApplication, 'phadname', $this->phadCodeFromApplication($application));
+        $wardNumber = $this->value($legacyApplication, 'ward_number', $application->ward_number);
+
+        return [
+            'district' => $application->district?->name
+                ?? $this->archiveValue('districts', 'district_code', $districtCode, 'district_name'),
+            'district_union' => $application->districtUnion?->name
+                ?? $this->archiveValue('district_union', 'id', $application->district_union_id, 'union_name'),
+            'samiti' => $application->samiti?->name
+                ?? $this->archiveValue('samiti', 'id', $application->samiti_id, 'samiti_name'),
+            'phad' => $this->phadName($application, $phadCode),
+            'block' => $this->archiveValue('blocks', 'block_code', $application->block_code, 'block_name'),
+            'gram_panchayat' => $this->archiveValue('gram_panchayat', 'gp_code', $application->gram_panchayat_code, 'gp_name'),
+            'village' => $this->archiveValue('villages', 'village_code', $application->village_code, 'village_name'),
+            'city' => $this->archiveValue('cities', 'city_code', $application->city_code, 'city_name'),
+            'ward' => $this->archiveValue('wards', 'ward_code', $application->ward_code, 'ward_name'),
+            'ward_number' => $wardNumber,
+        ];
+    }
+
+    private function phadName(ScholarshipApplication $application, mixed $phadCode): ?string
+    {
+        if (filled($phadCode)) {
+            $name = DB::table('phads')
+                ->where('code', 'like', 'PHD-'.$phadCode.'-%')
+                ->value('name');
+
+            if (filled($name)) {
+                return (string) $name;
+            }
+
+            $name = $this->archiveValue('phads', 'phad_code', $phadCode, 'phad_name');
+            if (filled($name)) {
+                return $name;
+            }
+        }
+
+        return $application->phad?->name;
+    }
+
+    private function districtCodeFromApplication(ScholarshipApplication $application): ?string
+    {
+        if ($application->district?->code && str_starts_with($application->district->code, 'DST-')) {
+            return substr($application->district->code, 4);
+        }
+
+        return $application->district_id !== null ? (string) $application->district_id : null;
+    }
+
+    private function phadCodeFromApplication(ScholarshipApplication $application): ?string
+    {
+        if ($application->phad?->code && preg_match('/^PHD-(.+)-\d+$/', $application->phad->code, $matches) === 1) {
+            return $matches[1];
+        }
+
+        return $application->phad_id !== null ? (string) $application->phad_id : null;
+    }
+
+    private function archiveValue(string $table, string $keyColumn, mixed $keyValue, string $nameColumn): ?string
+    {
+        if (! filled($keyValue) || ! Schema::hasTable('source_data_archives')) {
+            return null;
+        }
+
+        if (DB::connection()->getDriverName() === 'mysql') {
+            $row = DB::table('source_data_archives')
+                ->where('source_table', $table)
+                ->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(payload, '$.\"$keyColumn\"')) = ?", [(string) $keyValue])
+                ->first();
+        } else {
+            $row = DB::table('source_data_archives')
+                ->where('source_table', $table)
+                ->get()
+                ->first(function (object $archive) use ($keyColumn, $keyValue): bool {
+                    $payload = (array) json_decode((string) $archive->payload, true);
+
+                    return (string) ($payload[$keyColumn] ?? '') === (string) $keyValue;
+                });
+        }
+
+        if (! $row) {
+            return null;
+        }
+
+        $payload = (array) json_decode((string) $row->payload, true);
+        $value = $payload[$nameColumn] ?? null;
+
+        return filled($value) ? (string) $value : null;
     }
 
     /**
@@ -321,16 +396,31 @@ final class ScholarshipViewModelService
      */
     private function latestLegacyVerification(ScholarshipApplication $application): array
     {
-        if (! $application->application_number || ! Schema::hasTable('legacy_application_verify')) {
+        if (! $application->application_number || ! Schema::hasTable('source_data_archives')) {
             return [];
         }
 
-        $row = DB::table('legacy_application_verify')
-            ->where('application_id', $application->application_number)
-            ->orderByDesc('id')
-            ->first();
+        $query = DB::table('source_data_archives')
+            ->where('source_table', 'application_verify');
 
-        return $row ? (array) $row : [];
+        if (DB::connection()->getDriverName() === 'mysql') {
+            $row = $query
+                ->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(payload, '$.\"application_id\"')) = ?", [(string) $application->application_number])
+                ->orderByDesc(DB::raw('CAST(source_primary_key AS UNSIGNED)'))
+                ->first();
+        } else {
+            $row = $query
+                ->get()
+                ->filter(function (object $archive) use ($application): bool {
+                    $payload = (array) json_decode((string) $archive->payload, true);
+
+                    return (string) ($payload['application_id'] ?? '') === (string) $application->application_number;
+                })
+                ->sortByDesc(fn (object $archive): int => (int) $archive->source_primary_key)
+                ->first();
+        }
+
+        return $row ? (array) json_decode((string) $row->payload, true) : [];
     }
 
     /**
