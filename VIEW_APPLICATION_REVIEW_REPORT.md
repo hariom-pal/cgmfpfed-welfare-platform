@@ -19,8 +19,11 @@
 
 - `app/Http/Controllers/ScholarshipController.php`
 - `app/Services/DocumentService.php`
+- `app/Services/ScholarshipViewModelService.php`
 - `database/seeders/CompleteLegacyDataMigrationSeeder.php`
 - `resources/views/scholarship/show.blade.php`
+- `resources/views/scholarship/index.blade.php`
+- `resources/views/scholarship/select_scheme.blade.php`
 - `resources/views/components/show-field.blade.php`
 - `VIEW_APPLICATION_REVIEW_REPORT.md`
 
@@ -29,6 +32,8 @@
 Production entry point for the read-only page is `Scholarship::detail($id)`, which loads an application and joins the following master tables before rendering `detail_scholarship`: `schemes`, `districts`, `district_union`, `samiti`, `phads`, `blocks`, `gram_panchayat`, `cities`, `wards`, and `villages`.
 
 Access is enforced in three layers: the controller constructor requires login, `Visitor.php` limits controller/action families by role, and `Application_model::checkaccess()` scopes application visibility. Laravel already routes the page through `ScholarshipRepository::findVisible()`, which preserves VLE/user type scoping before rendering or serving documents.
+
+Production application navigation is scheme-first. `Scholarship::add_application()` loads active schemes from `schemes where status = 1` and renders `select_scheme_for_add`; `Scholarship::index()` is the listing controller and applies the selected `scheme` query filter along with role visibility, application number, location, date, and payment filters. Laravel now mirrors this for listing: `applications.index` displays active schemes first, then selected schemes call the same listing route with `scheme={id}`.
 
 Production documents are resolved by `AwsS3upload_model::getmyfile(application_id, filetype)` for application uploads and `gets3file(filename)` for Phad Book uploads. Both first attempt AWS S3 in bucket `csceduh`, prefix `beemaclaim`, region `ap-south-1`, and return a five-minute presigned URL. On S3 failure, production falls back to local `uploads/` using a normalized basename.
 
@@ -44,6 +49,8 @@ The production detail page displays a disabled application form, not a compact s
 - Phad Book verification uploads were not migrated as scholarship documents.
 - Missing S3/local files could surface as exceptions/abort paths instead of a graceful user response.
 - The page did not expose production-style collection verification details with TP card number, status label, feedback, and Phad Book reference.
+- The Laravel listing route opened an all-application table immediately instead of requiring scheme selection first.
+- The detail Blade contained local computed variables for legacy lookups, status labels, document maps, and scheme logic instead of receiving a complete view model from the controller/service layer.
 
 ## 5. Differences Fixed
 
@@ -55,6 +62,9 @@ The production detail page displays a disabled application form, not a compact s
 - Added migration of `phadbookfile` from `application_verify` into `scholarship_application_documents`.
 - Preserved urban `ward_number` and head-of-family bank fields in legacy migration metadata.
 - Hardened document serving: S3 is checked before presigning, S3 errors are logged, local fallback uses production filename normalization, and missing files return a clean 404 text response.
+- Added `ScholarshipViewModelService` as the controller/service source for scheme selection, detail sections, document rows, preview rows, collection rows, and status summary.
+- Updated `applications.index` so it first displays active schemes and only shows the application list after a scheme is selected.
+- Removed temporary/computed Blade variables from the application detail, listing, and scheme selection templates.
 
 ## 6. Remaining Issues
 

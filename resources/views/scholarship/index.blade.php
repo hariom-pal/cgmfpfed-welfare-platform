@@ -1,32 +1,25 @@
 @extends('layouts.admin')
 
 @section('title', 'Scholarship Applications')
-@section('heading', 'Scholarship Applications')
-@section('subtitle', 'Drafts, submissions, returns, and payment status')
-
-@php($breadcrumbs = ['Operations' => null, 'Applications' => null])
+@section('heading', $selectedScheme?->name ?? 'Scholarship Applications')
+@section('subtitle', 'Scheme-wise application list')
 
 @section('content')
     <x-card title="Applications" icon="fa-regular fa-file-lines">
         <x-slot:tools>
+            <a class="btn btn-outline-secondary" href="{{ route('applications.index') }}">
+                <i class="fa-solid fa-list me-1"></i>Change Scheme
+            </a>
             <a class="btn btn-primary" href="{{ route('applications.create') }}">
                 <i class="fa-solid fa-plus me-1"></i>New Application
             </a>
         </x-slot:tools>
 
         <form method="GET" class="row g-2 align-items-end mb-3">
+            <input type="hidden" name="scheme" value="{{ $filters['scheme_id'] }}">
             <div class="col-md-4">
                 <label class="form-label" for="q">Search</label>
                 <input class="form-control" id="q" name="q" value="{{ $filters['q'] ?? '' }}" placeholder="Application, name, or Aadhaar">
-            </div>
-            <div class="col-md-3">
-                <label class="form-label" for="scheme_id">Scheme</label>
-                <select class="form-select" id="scheme_id" name="scheme_id">
-                    <option value="">All</option>
-                    @foreach($schemes as $scheme)
-                        <option value="{{ $scheme->id }}" @selected(($filters['scheme_id'] ?? '') == $scheme->id)>{{ $scheme->name }}</option>
-                    @endforeach
-                </select>
             </div>
             <div class="col-md-3">
                 <label class="form-label" for="academic_session_id">Session</label>
@@ -39,7 +32,7 @@
             </div>
             <div class="col-md-2 d-flex gap-2">
                 <button class="btn btn-outline-primary" type="submit"><i class="fa-solid fa-magnifying-glass me-1"></i>Search</button>
-                <a class="btn btn-outline-secondary" href="{{ route('applications.index') }}">Reset</a>
+                <a class="btn btn-outline-secondary" href="{{ route('applications.index', ['scheme' => $filters['scheme_id']]) }}">Reset</a>
             </div>
         </form>
 

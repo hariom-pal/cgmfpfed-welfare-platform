@@ -10,11 +10,11 @@ use App\Models\AcademicSession;
 use App\Models\Scheme;
 use App\Models\ScholarshipApplication;
 use App\Models\ScholarshipWalletTransaction;
+use App\Services\ScholarshipViewModelService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
@@ -23,23 +23,30 @@ class ScholarshipController extends Controller
     public function __construct(
         private readonly ScholarshipRepositoryInterface $applications,
         private readonly ScholarshipServiceInterface $service,
+        private readonly ScholarshipViewModelService $viewModels,
     ) {}
 
     public function index(Request $request): View
     {
+        $filters = $this->applicationFilters($request);
+
+        if (! isset($filters['scheme_id'])) {
+            return view('scholarship.select_scheme', $this->viewModels->schemeSelection('list'));
+        }
+
         return view('scholarship.index', [
-            'applications' => $this->applications->paginateFor($request->user(), $request->query(), 20),
+            'applications' => $this->applications->paginateFor($request->user(), $filters, 20),
             'schemes' => Scheme::query()->where('is_active', true)->orderBy('name')->get(),
             'sessions' => AcademicSession::query()->orderByDesc('start_date')->get(),
-            'filters' => $request->query(),
+            'filters' => $filters,
+            'selectedScheme' => Scheme::query()->find($filters['scheme_id']),
+            'breadcrumbs' => ['Operations' => null, 'Applications' => null],
         ]);
     }
 
     public function create(): View
     {
-        return view('scholarship.select_scheme', [
-            'schemes' => Scheme::query()->where('is_active', true)->orderBy('name')->get(),
-        ]);
+        return view('scholarship.select_scheme', $this->viewModels->schemeSelection('create'));
     }
 
     public function createForScheme(Scheme $scheme): View
@@ -80,12 +87,7 @@ class ScholarshipController extends Controller
             'tendupattaCollections',
         ]);
 
-        return view('scholarship.show', [
-            'application' => $application,
-            'legacyDetail' => $this->legacyDetailFor($application),
-            'latestVerification' => $this->latestLegacyVerification($application),
-            'documentLabels' => $this->productionDocumentLabels($application),
-        ]);
+        return view('scholarship.show', $this->viewModels->applicationDetails($application));
     }
 
     public function edit(Request $request, ScholarshipApplication $application): View
@@ -312,83 +314,19 @@ class ScholarshipController extends Controller
     /**
      * @return array<string, mixed>
      */
-    private function legacyDetailFor(ScholarshipApplication $application): array
+    private function applicationFilters(Request $request): array
     {
-        if (! $application->legacy_application_id || ! Schema::hasTable('legacy_application')) {
-            return [];
+        $filters = $request->query();
+        if (! isset($filters['scheme_id']) && $request->filled('scheme')) {
+            $filters['scheme_id'] = $request->query('scheme');
         }
 
-        $row = DB::table('legacy_application as application')
-            ->leftJoin('legacy_schemes as schemes', 'application.scheme', '=', 'schemes.id')
-            ->leftJoin('legacy_districts as districts', 'application.district', '=', 'districts.district_code')
-            ->leftJoin('legacy_district_union as district_union', 'application.districtunion', '=', 'district_union.id')
-            ->leftJoin('legacy_samiti as samiti', 'application.samitiname', '=', 'samiti.id')
-            ->leftJoin('legacy_phads as phads', 'application.phadname', '=', 'phads.phad_code')
-            ->leftJoin('legacy_blocks as blocks', 'application.block', '=', 'blocks.block_code')
-            ->leftJoin('legacy_gram_panchayat as gram_panchayat', 'application.grampanchayat', '=', 'gram_panchayat.gp_code')
-            ->leftJoin('legacy_cities as cities', 'application.city', '=', 'cities.city_code')
-            ->leftJoin('legacy_wards as wards', 'application.ward', '=', 'wards.ward_code')
-            ->leftJoin('legacy_villages as villages', 'application.village', '=', 'villages.village_code')
-            ->where('application.id', $application->legacy_application_id)
-            ->select([
-                'application.*',
-                'schemes.name as scheme_name',
-                'districts.district_name',
-                'district_union.union_name',
-                'samiti.samiti_name',
-                'phads.phad_name',
-                'blocks.block_name',
-                'gram_panchayat.gp_name',
-                'cities.city_name',
-                'wards.ward_name',
-                'villages.village_name',
-            ])
-            ->first();
-
-        return $row ? (array) $row : [];
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    private function latestLegacyVerification(ScholarshipApplication $application): array
-    {
-        if (! $application->application_number || ! Schema::hasTable('legacy_application_verify')) {
-            return [];
-        }
-
-        $row = DB::table('legacy_application_verify')
-            ->where('application_id', $application->application_number)
-            ->orderByDesc('id')
-            ->first();
-
-        return $row ? (array) $row : [];
-    }
-
-    /**
-     * @return array<string, string>
-     */
-    private function productionDocumentLabels(ScholarshipApplication $application): array
-    {
-        $labels = [
-            'tpcard' => 'Sangrahak Card / संग्राहक कार्ड',
-            'aadharcard' => 'Aadhaar Card of Student / छात्र का आधार कार्ड',
-            'haadharcard' => 'Aadhaar Card of Head of Family / परिवार के मुखिया का आधार कार्ड',
-            'admission_copy' => 'Marksheet Copy / मार्कशीट कॉपी',
-        ];
-
-        if (in_array((int) $application->scheme_id, [3, 4], true)) {
-            $labels['passbook'] = 'Student Bank Passbook (Student PHOTO AND BANK DETAILS) / छात्र बैंक पासबुक';
-            $labels['admission_receipt'] = 'Admission Receipt / प्रवेश रसीद';
+        if (isset($filters['scheme_id']) && filled($filters['scheme_id'])) {
+            $filters['scheme_id'] = (int) $filters['scheme_id'];
         } else {
-            $labels['head_passbook'] = 'Head of Family Bank Passbook (HEAD OF FAMILY PHOTO AND BANK DETAILS) / परिवार बैंक पासबुक';
-            $labels['passbook'] = 'Front Page of Passbook / पासबुक का प्रथम पृष्ठ';
+            unset($filters['scheme_id']);
         }
 
-        if ($application->currentDocuments->contains('document_type', 'phadbookfile')) {
-            $labels['phadbookfile'] = 'Phad Book / फड़ बुक';
-        }
-
-        return $labels;
+        return $filters;
     }
 }
