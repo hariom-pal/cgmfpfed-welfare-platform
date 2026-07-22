@@ -39,12 +39,28 @@ final class MenuBuilder
         }
 
         if ($this->permissions->can($user, 'applications.view')) {
+            $statusItems = collect([
+                'Pending' => 'pending',
+                'Pending at VLE' => 'pending_vle',
+                'Rejected' => 'rejected',
+                'Completed' => 'completed',
+                'Last Completed' => 'last_completed',
+            ])->map(fn (string $status, string $label): array => $this->routeItem(
+                $label,
+                'applications.index',
+                'fa-regular fa-circle',
+                [],
+                ['status' => $status],
+                ['status' => $status],
+            ))->values()->all();
+
             $items[] = [
-                'label' => 'Scholarship',
+                'label' => 'Scholarship Applications',
                 'icon' => 'fa-regular fa-file-lines',
                 'active' => ['applications.*'],
                 'children' => array_values(array_filter([
-                    $this->routeItem('All Applications', 'applications.index', 'fa-regular fa-circle'),
+                    $this->routeItem('All Applications', 'applications.index', 'fa-regular fa-circle', [], [], ['status' => '']),
+                    ...$statusItems,
                     $this->roles->isVle($user) ? $this->routeItem('Add Application', 'applications.create', 'fa-regular fa-circle', ['applications.create', 'applications.create.scheme']) : null,
                 ])),
             ];
@@ -100,11 +116,12 @@ final class MenuBuilder
     /**
      * @param  list<string>  $active
      * @param  array<string, mixed>  $parameters
+     * @param  array<string, mixed>  $activeQuery
      * @return array<string, mixed>
      */
-    private function routeItem(string $label, string $route, string $icon, array $active = [], array $parameters = []): array
+    private function routeItem(string $label, string $route, string $icon, array $active = [], array $parameters = [], array $activeQuery = []): array
     {
-        return [
+        $item = [
             'label' => $label,
             'route' => $route,
             'parameters' => $parameters,
@@ -112,6 +129,12 @@ final class MenuBuilder
             'icon' => $icon,
             'active' => $active === [] ? [$route] : $active,
         ];
+
+        if ($activeQuery !== []) {
+            $item['active_query'] = $activeQuery;
+        }
+
+        return $item;
     }
 
     /**

@@ -34,9 +34,9 @@ final class AuthorizationFoundationTest extends TestCase
 
         $menu = collect(app(MenuBuilder::class)->buildFor($vle));
         $labels = $menu->pluck('label')->all();
-        $scholarshipChildren = collect($menu->firstWhere('label', 'Scholarship')['children'] ?? [])->pluck('label')->all();
+        $scholarshipChildren = collect($menu->firstWhere('label', 'Scholarship Applications')['children'] ?? [])->pluck('label')->all();
 
-        $this->assertContains('Scholarship', $labels);
+        $this->assertContains('Scholarship Applications', $labels);
         $this->assertContains('Add Application', $scholarshipChildren);
         $this->assertNotContains('Payment', $labels);
         $this->assertNotContains('Settings', $labels);
@@ -54,14 +54,14 @@ final class AuthorizationFoundationTest extends TestCase
         $menu = collect(app(MenuBuilder::class)->buildFor($admin));
         $labels = $menu->pluck('label')->all();
         $masterChildren = collect($menu->firstWhere('label', 'Masters')['children'] ?? [])->pluck('label')->all();
-        $scholarshipChildren = collect($menu->firstWhere('label', 'Scholarship')['children'] ?? [])->pluck('label')->all();
+        $scholarshipChildren = collect($menu->firstWhere('label', 'Scholarship Applications')['children'] ?? [])->pluck('label')->all();
         $beemaChildren = collect($menu->firstWhere('label', 'Beema')['children'] ?? [])->pluck('label')->all();
         $otherChildren = collect($menu->firstWhere('label', 'Other Modules')['children'] ?? [])->pluck('label')->all();
 
         $this->assertSame('Dashboard', $labels[0]);
         $this->assertSame('Masters', $labels[1]);
-        $this->assertSame(['Dashboard', 'Masters', 'Scholarship', 'Beema', 'Reports', 'User Management', 'Other Modules'], $labels);
-        $this->assertContains('Scholarship', $labels);
+        $this->assertSame(['Dashboard', 'Masters', 'Scholarship Applications', 'Beema', 'Reports', 'User Management', 'Other Modules'], $labels);
+        $this->assertContains('Scholarship Applications', $labels);
         $this->assertContains('Beema', $labels);
         $this->assertContains('Reports', $labels);
         $this->assertContains('User Management', $labels);
@@ -74,6 +74,25 @@ final class AuthorizationFoundationTest extends TestCase
         $this->assertNotContains('Masters', $beemaChildren);
         $this->assertContains('Workflow Batches', $otherChildren);
         $this->assertContains('Payment', $otherChildren);
+    }
+
+    public function test_scholarship_menu_contains_status_filtered_views(): void
+    {
+        $admin = $this->legacyUser(1);
+        $this->grant($admin, [1, 2, 4, 35, 38]);
+
+        $menu = collect(app(MenuBuilder::class)->buildFor($admin));
+        $children = collect($menu->firstWhere('label', 'Scholarship Applications')['children'] ?? []);
+
+        $this->assertSame(
+            ['All Applications', 'Pending', 'Pending at VLE', 'Rejected', 'Completed', 'Last Completed'],
+            $children->pluck('label')->all(),
+        );
+        $this->assertSame(route('applications.index', ['status' => 'pending']), $children->firstWhere('label', 'Pending')['url']);
+        $this->assertSame(route('applications.index', ['status' => 'pending_vle']), $children->firstWhere('label', 'Pending at VLE')['url']);
+        $this->assertSame(route('applications.index', ['status' => 'rejected']), $children->firstWhere('label', 'Rejected')['url']);
+        $this->assertSame(route('applications.index', ['status' => 'completed']), $children->firstWhere('label', 'Completed')['url']);
+        $this->assertSame(route('applications.index', ['status' => 'last_completed']), $children->firstWhere('label', 'Last Completed')['url']);
     }
 
     public function test_master_management_is_super_admin_only_even_when_other_roles_have_permission(): void

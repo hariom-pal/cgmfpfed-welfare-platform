@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Domains\Scholarship\Repositories;
 
 use App\Domains\Scholarship\Contracts\ScholarshipRepositoryInterface;
+use App\Domains\Scholarship\Enums\ScholarshipApplicationStatus;
 use App\Models\ScholarshipApplication;
 use App\Models\User;
 use App\Repositories\BaseRepository;
@@ -73,6 +74,16 @@ final class ScholarshipRepository extends BaseRepository implements ScholarshipR
                     '(select acted_by_role from scholarship_workflow_transitions where scholarship_workflow_transitions.scholarship_application_id = scholarship_applications.id order by acted_at desc, id desc limit 1) = ?',
                     [$role],
                 );
+            })
+            ->when($filters['status'] ?? null, function (Builder $builder, mixed $status): void {
+                match ($status) {
+                    'pending' => $builder->whereIn('status', ScholarshipApplicationStatus::underProcessValues()),
+                    'pending_vle' => $builder->whereIn('status', ScholarshipApplicationStatus::pendingAtVleValues()),
+                    'rejected' => $builder->whereIn('status', ScholarshipApplicationStatus::rejectedValues()),
+                    'completed' => $builder->whereIn('status', ScholarshipApplicationStatus::completedValues()),
+                    'last_completed' => $builder->whereIn('status', ScholarshipApplicationStatus::completedValues())->reorder('completed_at', 'desc'),
+                    default => null,
+                };
             });
 
         return $query;

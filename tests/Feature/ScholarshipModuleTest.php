@@ -332,6 +332,157 @@ final class ScholarshipModuleTest extends TestCase
             ->assertDontSee('Current Workflow Level');
     }
 
+    public function test_application_status_menu_filters_show_respective_lists(): void
+    {
+        $this->userWithPermissions();
+        $scheme = Scheme::factory()->create(['id' => 1, 'code' => 'SCH1', 'name' => 'Class Scholarship']);
+        $session = AcademicSession::factory()->create(['name' => '2026-27']);
+
+        $pendingAtVle = ScholarshipApplication::factory()->submitted()->create([
+            'application_number' => 'SCH-STATUS-VLE',
+            'scheme_id' => $scheme->id,
+            'academic_session_id' => $session->id,
+            'status' => ScholarshipApplicationStatus::Pending->value,
+        ]);
+        $underProcess = ScholarshipApplication::factory()->submitted()->create([
+            'application_number' => 'SCH-STATUS-PROCESS',
+            'scheme_id' => $scheme->id,
+            'academic_session_id' => $session->id,
+            'status' => ScholarshipApplicationStatus::RecommendedBySamiti->value,
+        ]);
+        $rejected = ScholarshipApplication::factory()->submitted()->create([
+            'application_number' => 'SCH-STATUS-REJECTED',
+            'scheme_id' => $scheme->id,
+            'academic_session_id' => $session->id,
+            'status' => ScholarshipApplicationStatus::RejectedBySamiti->value,
+        ]);
+        $completed = ScholarshipApplication::factory()->completed()->create([
+            'application_number' => 'SCH-STATUS-COMPLETED',
+            'scheme_id' => $scheme->id,
+            'academic_session_id' => $session->id,
+        ]);
+
+        $this->get(route('applications.index', ['scheme' => $scheme->id, 'academic_session_id' => $session->id, 'status' => 'pending_vle']))
+            ->assertOk()
+            ->assertSee($pendingAtVle->application_number)
+            ->assertDontSee($underProcess->application_number)
+            ->assertDontSee($rejected->application_number)
+            ->assertDontSee($completed->application_number);
+
+        $this->get(route('applications.index', ['scheme' => $scheme->id, 'academic_session_id' => $session->id, 'status' => 'pending']))
+            ->assertOk()
+            ->assertSee($underProcess->application_number)
+            ->assertDontSee($pendingAtVle->application_number)
+            ->assertDontSee($rejected->application_number)
+            ->assertDontSee($completed->application_number);
+
+        $this->get(route('applications.index', ['scheme' => $scheme->id, 'academic_session_id' => $session->id, 'status' => 'rejected']))
+            ->assertOk()
+            ->assertSee($rejected->application_number)
+            ->assertDontSee($pendingAtVle->application_number)
+            ->assertDontSee($underProcess->application_number)
+            ->assertDontSee($completed->application_number);
+
+        $this->get(route('applications.index', ['scheme' => $scheme->id, 'academic_session_id' => $session->id, 'status' => 'completed']))
+            ->assertOk()
+            ->assertSee($completed->application_number)
+            ->assertDontSee($pendingAtVle->application_number)
+            ->assertDontSee($underProcess->application_number)
+            ->assertDontSee($rejected->application_number);
+
+        $this->get(route('applications.index', ['scheme' => $scheme->id, 'academic_session_id' => $session->id]))
+            ->assertOk()
+            ->assertSee($pendingAtVle->application_number)
+            ->assertSee($underProcess->application_number)
+            ->assertSee($rejected->application_number)
+            ->assertSee($completed->application_number);
+    }
+
+    public function test_last_completed_menu_defaults_to_current_session_and_orders_by_completion(): void
+    {
+        $this->userWithPermissions();
+        $scheme = Scheme::factory()->create(['id' => 1, 'code' => 'SCH1', 'name' => 'Class Scholarship']);
+        $currentSession = AcademicSession::factory()->create([
+            'name' => '2026-27',
+            'start_date' => '2026-04-01',
+            'end_date' => '2027-03-31',
+        ]);
+        $otherSession = AcademicSession::factory()->create([
+            'name' => '2025-26',
+            'start_date' => '2025-04-01',
+            'end_date' => '2026-03-31',
+        ]);
+
+        $olderCompleted = ScholarshipApplication::factory()->completed()->create([
+            'application_number' => 'SCH-LC-OLDER',
+            'scheme_id' => $scheme->id,
+            'academic_session_id' => $currentSession->id,
+            'completed_at' => now()->subDays(5),
+        ]);
+        $recentCompleted = ScholarshipApplication::factory()->completed()->create([
+            'application_number' => 'SCH-LC-RECENT',
+            'scheme_id' => $scheme->id,
+            'academic_session_id' => $currentSession->id,
+            'completed_at' => now(),
+        ]);
+        $otherSessionCompleted = ScholarshipApplication::factory()->completed()->create([
+            'application_number' => 'SCH-LC-OTHER-SESSION',
+            'scheme_id' => $scheme->id,
+            'academic_session_id' => $otherSession->id,
+            'completed_at' => now(),
+        ]);
+
+        $response = $this->get(route('applications.index', ['scheme' => $scheme->id, 'status' => 'last_completed']));
+
+        $response->assertOk()
+            ->assertSee('Last Completed — Academic Session:', false)
+            ->assertSee($currentSession->name)
+            ->assertSee($olderCompleted->application_number)
+            ->assertSee($recentCompleted->application_number)
+            ->assertDontSee($otherSessionCompleted->application_number);
+
+        $recentPosition = strpos($response->getContent(), $recentCompleted->application_number);
+        $olderPosition = strpos($response->getContent(), $olderCompleted->application_number);
+        $this->assertIsInt($recentPosition);
+        $this->assertIsInt($olderPosition);
+        $this->assertLessThan($olderPosition, $recentPosition, 'Most recently completed application should be listed first.');
+
+        $this->get(route('applications.index', [
+            'scheme' => $scheme->id,
+            'status' => 'last_completed',
+            'academic_session_id' => $otherSession->id,
+        ]))
+            ->assertOk()
+            ->assertSee($otherSessionCompleted->application_number)
+            ->assertDontSee($olderCompleted->application_number)
+            ->assertDontSee($recentCompleted->application_number);
+    }
+
+    public function test_dependent_dropdowns_start_empty_until_parent_selected(): void
+    {
+        $this->userWithPermissions((int) config('csc.vle_role_id'));
+        $scheme = Scheme::factory()->create(['id' => 1, 'code' => 'SCH1', 'name' => 'Class Scholarship']);
+        $districtUnion = DistrictUnion::factory()->create(['name' => 'Union Alpha']);
+        $samiti = Samiti::factory()->create(['name' => 'Samiti Alpha', 'district_union_id' => $districtUnion->id]);
+        Phad::factory()->create(['name' => 'Phad Alpha', 'district_union_id' => $districtUnion->id, 'samiti_id' => $samiti->id]);
+
+        $this->get(route('applications.index', ['scheme' => $scheme->id]))
+            ->assertOk()
+            ->assertSee('Union Alpha')
+            ->assertDontSee('Samiti Alpha')
+            ->assertDontSee('Phad Alpha');
+
+        $this->get(route('applications.index', ['scheme' => $scheme->id, 'district_union_id' => $districtUnion->id]))
+            ->assertOk()
+            ->assertSee('Samiti Alpha')
+            ->assertDontSee('Phad Alpha');
+
+        $formHtml = $this->get(route('applications.create.scheme', $scheme))->assertOk()->getContent();
+        $this->assertStringContainsString('Union Alpha', $formHtml);
+        $this->assertStringNotContainsString('Samiti Alpha', $formHtml);
+        $this->assertStringNotContainsString('Phad Alpha', $formHtml);
+    }
+
     public function test_scholarship_payment_attempts_are_independent_from_wallet_payment(): void
     {
         $user = $this->userWithPermissions();

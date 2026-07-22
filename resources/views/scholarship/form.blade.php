@@ -81,18 +81,12 @@
                     <label class="form-label">Samiti Name / समिति का नाम <span class="text-danger">*</span></label>
                     <select class="form-select" name="samiti_id" id="samiti_id" required data-selected="{{ old('samiti_id', $application?->samiti_id) }}">
                         <option value="">--CHOOSE--</option>
-                        @foreach($samitis as $samiti)
-                            <option value="{{ $samiti->id }}" @selected(old('samiti_id', $application?->samiti_id) == $samiti->id)>{{ $samiti->name }}</option>
-                        @endforeach
                     </select>
                 </div>
                 <div class="col-md-4">
                     <label class="form-label">PHAD Name / फड़ का नाम <span class="text-danger">*</span></label>
                     <select class="form-select" name="phad_id" id="phad_id" required data-selected="{{ old('phad_id', $application?->phad_id) }}">
                         <option value="">--CHOOSE--</option>
-                        @foreach($phads as $phad)
-                            <option value="{{ $phad->id }}" @selected(old('phad_id', $application?->phad_id) == $phad->id)>{{ $phad->name }}</option>
-                        @endforeach
                     </select>
                 </div>
 
@@ -311,8 +305,16 @@
                 document.getElementById('percentage').value = total > 0 ? ((obtained * 100) / total).toFixed(2) : '';
             }
 
-            districtUnion.addEventListener('change', () => load(samiti, 'samitis', {district_union_id: districtUnion.value}));
-            samiti.addEventListener('change', () => load(phad, 'phads', {samiti_id: samiti.value}));
+            districtUnion.addEventListener('change', () => {
+                samiti.dataset.selected = '';
+                phad.dataset.selected = '';
+                fillSelect(phad, [], '');
+                load(samiti, 'samitis', {district_union_id: districtUnion.value});
+            });
+            samiti.addEventListener('change', () => {
+                phad.dataset.selected = '';
+                load(phad, 'phads', {samiti_id: samiti.value});
+            });
             district.addEventListener('change', () => load(block, 'blocks', {district_code: district.value}, 'code'));
             block.addEventListener('change', () => {
                 load(gramPanchayat, 'gram-panchayats', {block_code: block.value}, 'code');
@@ -359,6 +361,13 @@
                     if (block.dataset.selected) {
                         load(gramPanchayat, 'gram-panchayats', {block_code: block.dataset.selected}, 'code');
                         load(city, 'cities', {block_code: block.dataset.selected}, 'code');
+                    }
+                });
+            }
+            if (districtUnion.value) {
+                load(samiti, 'samitis', {district_union_id: districtUnion.value}).then(() => {
+                    if (samiti.dataset.selected) {
+                        load(phad, 'phads', {samiti_id: samiti.dataset.selected});
                     }
                 });
             }

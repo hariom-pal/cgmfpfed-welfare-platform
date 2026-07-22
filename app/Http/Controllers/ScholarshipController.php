@@ -19,6 +19,7 @@ use App\Services\ScholarshipViewModelService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\ValidationException;
@@ -26,6 +27,11 @@ use Illuminate\View\View;
 
 class ScholarshipController extends Controller
 {
+    /**
+     * @var list<string>
+     */
+    private const STATUS_MENU_FILTERS = ['pending', 'pending_vle', 'rejected', 'completed', 'last_completed'];
+
     public function __construct(
         private readonly ScholarshipRepositoryInterface $applications,
         private readonly ScholarshipServiceInterface $service,
@@ -41,7 +47,7 @@ class ScholarshipController extends Controller
         $filters = $this->applicationFilters($request);
 
         if (! isset($filters['scheme_id'])) {
-            return view('scholarship.select_scheme', $this->viewModels->schemeSelection('list'));
+            return view('scholarship.select_scheme', $this->viewModels->schemeSelection('list', $filters));
         }
 
         $request->session()->put('current_scheme_id', $filters['scheme_id']);
@@ -232,8 +238,6 @@ class ScholarshipController extends Controller
                 ->sortBy('name')
                 ->values(),
             'districtUnions' => DB::table('district_unions')->orderBy('name')->get(['id', 'name']),
-            'samitis' => DB::table('samitis')->orderBy('name')->get(['id', 'name']),
-            'phads' => DB::table('phads')->orderBy('name')->get(['id', 'code', 'name']),
         ];
     }
 
@@ -388,27 +392,45 @@ class ScholarshipController extends Controller
             }
         }
 
+        if (isset($filters['status']) && in_array($filters['status'], self::STATUS_MENU_FILTERS, true)) {
+            if ($filters['status'] === 'last_completed' && ! isset($filters['academic_session_id'])) {
+                $currentSession = $this->sessions->deriveForDate(now());
+                if ($currentSession !== null) {
+                    $filters['academic_session_id'] = $currentSession->id;
+                }
+            }
+        } else {
+            unset($filters['status']);
+        }
+
         return $filters;
     }
 
     /**
-     * @return array<int, string>
+     * @return Collection<int, mixed>
      */
     private function samitiOptions(array $filters): mixed
     {
+        if (! isset($filters['district_union_id'])) {
+            return collect();
+        }
+
         return Samiti::query()
             ->where('is_active', true)
-            ->when($filters['district_union_id'] ?? null, fn ($query, int $districtUnionId) => $query->where('district_union_id', $districtUnionId))
+            ->where('district_union_id', $filters['district_union_id'])
             ->orderBy('name')
             ->get(['id', 'name', 'district_union_id']);
     }
 
     private function phadOptions(array $filters): mixed
     {
+        if (! isset($filters['samiti_id'])) {
+            return collect();
+        }
+
         return Phad::query()
             ->where('is_active', true)
-            ->when($filters['samiti_id'] ?? null, fn ($query, int $samitiId) => $query->where('samiti_id', $samitiId))
-            ->when(! isset($filters['samiti_id']) && isset($filters['district_union_id']), fn ($query) => $query->whereRaw('1 = 0'))
+            ->where('samiti_id', $filters['samiti_id'])
             ->orderBy('name')
             ->get(['id', 'name', 'samiti_id']);
     }

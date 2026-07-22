@@ -1,7 +1,17 @@
 @extends('layouts.admin')
 
+@php($statusLabels = [
+    'pending' => 'Pending',
+    'pending_vle' => 'Pending at VLE',
+    'rejected' => 'Rejected',
+    'completed' => 'Completed',
+    'last_completed' => 'Last Completed',
+])
+@php($currentStatus = $filters['status'] ?? null)
+@php($currentStatusLabel = $statusLabels[$currentStatus] ?? null)
+
 @section('title', 'Scholarship Applications')
-@section('heading', $selectedScheme?->name ?? 'Scholarship Applications')
+@section('heading', ($selectedScheme?->name ?? 'Scholarship Applications').($currentStatusLabel ? ' — '.$currentStatusLabel : ''))
 @section('subtitle', 'Scheme-wise application list')
 
 @section('content')
@@ -9,6 +19,14 @@
         <div><span class="fw-semibold">Current Scheme:</span> {{ $selectedScheme?->name }}</div>
         <a class="btn btn-sm btn-outline-primary" href="{{ route('applications.index') }}">Change Scheme</a>
     </div>
+
+    @if($currentStatus === 'last_completed')
+        @php($currentSessionForLastCompleted = $sessions->firstWhere('id', $filters['academic_session_id'] ?? null))
+        <div class="alert alert-secondary d-flex flex-wrap align-items-center justify-content-between gap-2">
+            <div><span class="fw-semibold">Last Completed — Academic Session:</span> {{ $currentSessionForLastCompleted?->name ?? 'Not set' }}</div>
+            <div class="small text-muted">Use the Academic Session filter below to view a different session.</div>
+        </div>
+    @endif
 
     <x-card title="Applications" icon="fa-regular fa-file-lines">
         <x-slot:tools>
@@ -21,6 +39,9 @@
 
         <form method="GET" class="row g-2 align-items-end mb-3">
             <input type="hidden" name="scheme" value="{{ $filters['scheme_id'] }}">
+            @if($currentStatus)
+                <input type="hidden" name="status" value="{{ $currentStatus }}">
+            @endif
             <div class="col-md-3">
                 <label class="form-label" for="academic_session_id">Academic Session</label>
                 <select class="form-select" id="academic_session_id" name="academic_session_id">
