@@ -20,7 +20,31 @@
                         <td><span class="badge text-bg-primary">{{ $application->status_label }}</span></td>
                         <td class="text-end">
                             <form class="d-inline" method="POST" action="{{ route('workflow.action', $application) }}">@csrf<input type="hidden" name="action" value="recommend"><button class="btn btn-sm btn-outline-success" title="Recommend"><i class="fa-solid fa-check"></i></button></form>
-                            <form class="d-inline" method="POST" action="{{ route('workflow.action', $application) }}">@csrf<input type="hidden" name="action" value="return"><button class="btn btn-sm btn-outline-warning" title="Return"><i class="fa-solid fa-arrow-rotate-left"></i></button></form>
+                            <details class="d-inline-block text-start align-middle">
+                                <summary class="btn btn-sm btn-outline-warning" title="Return"><i class="fa-solid fa-arrow-rotate-left"></i></summary>
+                                <form class="border rounded bg-white p-2 mt-2 shadow-sm" style="min-width: 280px;" method="POST" action="{{ route('workflow.action', $application) }}">
+                                    @csrf
+                                    <input type="hidden" name="action" value="return">
+                                    <div class="small fw-semibold mb-1">Correction sections</div>
+                                    @foreach(['student_details' => 'Student Details', 'education_details' => 'Education Details', 'bank_details' => 'Student Bank Details', 'supporting_documents' => 'Supporting Documents'] as $section => $label)
+                                        <label class="form-check small">
+                                            <input class="form-check-input" type="checkbox" name="correction_sections[]" value="{{ $section }}" @checked($section === 'supporting_documents')>
+                                            <span class="form-check-label">{{ $label }}</span>
+                                        </label>
+                                    @endforeach
+                                    <div class="small fw-semibold mt-2 mb-1">Editable documents</div>
+                                    @forelse($application->currentDocuments as $document)
+                                        <label class="form-check small">
+                                            <input class="form-check-input" type="checkbox" name="editable_documents[]" value="{{ $document->document_type }}">
+                                            <span class="form-check-label">{{ str_replace('_', ' ', $document->document_type) }}</span>
+                                        </label>
+                                    @empty
+                                        <div class="small text-muted">No uploaded documents.</div>
+                                    @endforelse
+                                    <textarea class="form-control form-control-sm my-2" name="remarks" rows="2" placeholder="Remarks"></textarea>
+                                    <button class="btn btn-sm btn-warning w-100" type="submit">Return</button>
+                                </form>
+                            </details>
                             <form class="d-inline" method="POST" action="{{ route('workflow.action', $application) }}">@csrf<input type="hidden" name="action" value="reject"><button class="btn btn-sm btn-outline-danger" title="Reject"><i class="fa-solid fa-xmark"></i></button></form>
                             <a class="btn btn-sm btn-outline-primary" href="{{ route('applications.show', $application) }}"><i class="fa-regular fa-eye"></i></a>
                         </td>

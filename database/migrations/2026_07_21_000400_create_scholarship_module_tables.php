@@ -89,17 +89,35 @@ return new class extends Migration
         Schema::create('scholarship_application_documents', function (Blueprint $table): void {
             $table->id();
             $table->unsignedBigInteger('scholarship_application_id');
+            $table->string('student_identifier')->nullable()->index();
+            $table->foreignId('scheme_id')->nullable()->constrained('schemes')->nullOnDelete();
             $table->string('document_type');
             $table->string('file_path')->nullable();
+            $table->string('storage_disk', 40)->default('public');
+            $table->string('original_file_name')->nullable();
+            $table->string('stored_file_name')->nullable();
+            $table->string('file_extension', 20)->nullable();
+            $table->string('mime_type')->nullable();
+            $table->unsignedBigInteger('file_size')->nullable();
             $table->string('source', 20)->default('MANUAL');
+            $table->foreignId('uploaded_by')->nullable()->constrained('users')->nullOnDelete();
+            $table->timestamp('uploaded_at')->nullable();
             $table->boolean('is_verified')->default(false);
             $table->foreignId('verified_by')->nullable()->constrained('users')->nullOnDelete();
             $table->timestamp('verified_at')->nullable();
             $table->text('remarks')->nullable();
+            $table->unsignedInteger('version')->default(1);
+            $table->boolean('is_current')->default(true)->index();
+            $table->foreignId('replaced_by')->nullable()->constrained('users')->nullOnDelete();
+            $table->timestamp('replaced_at')->nullable();
+            $table->unsignedBigInteger('previous_document_id')->nullable();
+            $table->boolean('editable_after_return')->default(false);
             $table->timestamps();
 
             $table->foreign('scholarship_application_id', 'sch_app_docs_app_fk')->references('id')->on('scholarship_applications')->cascadeOnDelete();
-            $table->unique(['scholarship_application_id', 'document_type'], 'sch_app_doc_type_unique');
+            $table->foreign('previous_document_id', 'sch_app_docs_prev_fk')->references('id')->on('scholarship_application_documents')->nullOnDelete();
+            $table->index(['scholarship_application_id', 'document_type', 'is_current'], 'sch_app_doc_current_idx');
+            $table->index(['scholarship_application_id', 'document_type', 'version'], 'sch_app_doc_version_idx');
         });
 
         Schema::create('scholarship_tendupatta_collections', function (Blueprint $table): void {

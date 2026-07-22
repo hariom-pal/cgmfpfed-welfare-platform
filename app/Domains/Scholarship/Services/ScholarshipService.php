@@ -156,17 +156,23 @@ final class ScholarshipService extends BaseService implements ScholarshipService
             $status = $fromStatus === ScholarshipApplicationStatus::PermanentlyRejectedByAccounts->value
                 ? ScholarshipApplicationStatus::AccountDetailsUpdatedByHQ
                 : ScholarshipApplicationStatus::Resubmitted;
+            $this->enforceEditableDocumentsForReturn($application, $data);
 
             $application->fill($payload + [
                 'status' => $status->value,
                 'status_label' => $status->label(),
                 'current_stage' => $status->stage(),
                 'is_draft' => false,
+                'metadata' => array_diff_key($this->applicationMetadata($application), array_flip(['correction_sections', 'editable_documents', 'returned_at', 'returned_by'])),
                 'updated_by' => $user->id,
             ])->save();
 
-            $this->validateForSubmit($application->refresh());
             $this->syncChildren($application, $data, false, $user);
+            ScholarshipApplicationDocument::query()
+                ->where('scholarship_application_id', $application->id)
+                ->where('is_current', true)
+                ->update(['editable_after_return' => false]);
+            $this->validateForSubmit($application->refresh());
             $this->audit($application, 'resubmitted', $fromStatus, $status->stage(), 'Application resubmitted after return', $user, $data);
             $this->notify($application, $user, 'Scholarship application resubmitted', $status->label());
 
@@ -174,11 +180,33 @@ final class ScholarshipService extends BaseService implements ScholarshipService
         });
     }
 
-    public function transition(ScholarshipApplication $application, string $action, ?string $remarks, User $user): ScholarshipApplication
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    private function enforceEditableDocumentsForReturn(ScholarshipApplication $application, array $data): void
     {
-        return DB::transaction(function () use ($application, $action, $remarks, $user): ScholarshipApplication {
+        $allowed = $this->applicationMetadata($application)['editable_documents'] ?? [];
+        if ($allowed === []) {
+            return;
+        }
+
+        $attempted = array_keys($data['documents'] ?? []);
+        $blocked = array_values(array_diff(array_map('strval', $attempted), array_map('strval', $allowed)));
+
+        if ($blocked !== []) {
+            throw ValidationException::withMessages([
+                'documents' => 'Only documents selected during return for correction can be replaced: '.implode(', ', $allowed).'.',
+            ]);
+        }
+    }
+
+    public function transition(ScholarshipApplication $application, string $action, ?string $remarks, User $user, array $correctionSections = [], array $editableDocuments = []): ScholarshipApplication
+    {
+        return DB::transaction(function () use ($application, $action, $remarks, $user, $correctionSections, $editableDocuments): ScholarshipApplication {
             $status = $this->nextStatus($application, $action);
             $fromStatus = (int) $application->status;
+            $selectedSections = array_values(array_unique(array_filter(array_map('strval', $correctionSections))));
+            $selectedDocuments = array_values(array_unique(array_filter(array_map('strval', $editableDocuments))));
 
             $updates = [
                 'status' => $status->value,
@@ -199,8 +227,33 @@ final class ScholarshipService extends BaseService implements ScholarshipService
                 $updates['payment_status'] = 'submitted';
             }
 
+            if ($action === 'return') {
+                $metadata = $this->applicationMetadata($application);
+                $metadata['correction_sections'] = $selectedSections;
+                $metadata['editable_documents'] = $selectedDocuments;
+                $metadata['returned_at'] = now()->toDateTimeString();
+                $metadata['returned_by'] = $user->id;
+                $updates['metadata'] = $metadata;
+
+                ScholarshipApplicationDocument::query()
+                    ->where('scholarship_application_id', $application->id)
+                    ->where('is_current', true)
+                    ->update(['editable_after_return' => false]);
+
+                if ($selectedDocuments !== []) {
+                    ScholarshipApplicationDocument::query()
+                        ->where('scholarship_application_id', $application->id)
+                        ->where('is_current', true)
+                        ->whereIn('document_type', $selectedDocuments)
+                        ->update(['editable_after_return' => true]);
+                }
+            }
+
             $application->fill($updates)->save();
-            $this->audit($application, $action, $fromStatus, $status->stage(), $remarks ?: $status->label(), $user);
+            $this->audit($application, $action, $fromStatus, $status->stage(), $remarks ?: $status->label(), $user, [
+                'correction_sections' => $selectedSections,
+                'editable_documents' => $selectedDocuments,
+            ]);
             $this->notify($application, $user, 'Scholarship workflow updated', $status->label());
 
             return $application->refresh();
@@ -408,6 +461,7 @@ final class ScholarshipService extends BaseService implements ScholarshipService
             $hasDocument = ScholarshipApplicationDocument::query()
                 ->where('scholarship_application_id', $application->id)
                 ->where('document_type', $documentType)
+                ->where('is_current', true)
                 ->whereNotNull('file_path')
                 ->where('file_path', '!=', '')
                 ->exists();
@@ -561,17 +615,12 @@ final class ScholarshipService extends BaseService implements ScholarshipService
                 $document = ['file_path' => $document];
             }
 
-            ScholarshipApplicationDocument::query()->updateOrCreate(
-                ['scholarship_application_id' => $application->id, 'document_type' => (string) $documentType],
-                [
-                    'file_path' => $document['file_path'] ?? null,
-                    'source' => strtoupper((string) ($document['source'] ?? 'MANUAL')),
-                    'is_verified' => $verified,
-                    'verified_by' => $verified ? $user->id : null,
-                    'verified_at' => $verified ? now() : null,
-                    'remarks' => $document['remarks'] ?? null,
-                ],
-            );
+            $filePath = trim((string) ($document['file_path'] ?? ''));
+            if ($filePath === '') {
+                continue;
+            }
+
+            $this->storeDocumentVersion($application, (string) $documentType, $document, $verified, $user);
         }
 
         foreach ($data['tendupatta_collections'] ?? [] as $collection) {
@@ -591,6 +640,87 @@ final class ScholarshipService extends BaseService implements ScholarshipService
                 ],
             );
         }
+    }
+
+    /**
+     * @param  array<string, mixed>  $document
+     */
+    private function storeDocumentVersion(ScholarshipApplication $application, string $documentType, array $document, bool $verified, User $user): void
+    {
+        $current = ScholarshipApplicationDocument::query()
+            ->where('scholarship_application_id', $application->id)
+            ->where('document_type', $documentType)
+            ->where('is_current', true)
+            ->latest('version')
+            ->first();
+
+        if ($current instanceof ScholarshipApplicationDocument) {
+            $current->forceFill([
+                'is_current' => false,
+                'replaced_by' => $user->id,
+                'replaced_at' => now(),
+                'editable_after_return' => false,
+            ])->save();
+        }
+
+        $filePath = (string) $document['file_path'];
+        $storedFileName = (string) ($document['stored_file_name'] ?? basename($filePath));
+        $extension = (string) ($document['file_extension'] ?? pathinfo($filePath, PATHINFO_EXTENSION));
+
+        $version = $current instanceof ScholarshipApplicationDocument ? $current->version + 1 : 1;
+
+        $created = ScholarshipApplicationDocument::query()->create([
+            'scholarship_application_id' => $application->id,
+            'student_identifier' => $application->student_aadhaar,
+            'scheme_id' => $application->scheme_id,
+            'document_type' => $documentType,
+            'file_path' => $filePath,
+            'storage_disk' => (string) ($document['storage_disk'] ?? 'public'),
+            'original_file_name' => $document['original_file_name'] ?? $storedFileName,
+            'stored_file_name' => $storedFileName,
+            'file_extension' => $extension !== '' ? strtolower($extension) : null,
+            'mime_type' => $document['mime_type'] ?? $this->mimeTypeFromExtension($extension),
+            'file_size' => isset($document['file_size']) ? (int) $document['file_size'] : null,
+            'source' => strtoupper((string) ($document['source'] ?? 'MANUAL')),
+            'uploaded_by' => $document['uploaded_by'] ?? $user->id,
+            'uploaded_at' => $document['uploaded_at'] ?? now(),
+            'is_verified' => $verified,
+            'verified_by' => $verified ? $user->id : null,
+            'verified_at' => $verified ? now() : null,
+            'remarks' => $document['remarks'] ?? null,
+            'version' => $version,
+            'is_current' => true,
+            'previous_document_id' => $current?->id,
+            'editable_after_return' => false,
+        ]);
+
+        $this->audit($application, $current instanceof ScholarshipApplicationDocument ? 'document_replaced' : 'document_uploaded', (int) $application->status, $application->current_stage, $this->documentLabel($documentType), $user, [
+            'document_id' => $created->id,
+            'document_type' => $documentType,
+            'version' => $created->version,
+            'previous_document_id' => $current?->id,
+        ]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function applicationMetadata(ScholarshipApplication $application): array
+    {
+        $rawMetadata = $application->getRawOriginal('metadata');
+        $decoded = is_string($rawMetadata) ? json_decode($rawMetadata, true) : null;
+
+        return is_array($decoded) ? $decoded : [];
+    }
+
+    private function mimeTypeFromExtension(?string $extension): string
+    {
+        return match (strtolower((string) $extension)) {
+            'jpg', 'jpeg' => 'image/jpeg',
+            'png' => 'image/png',
+            'pdf' => 'application/pdf',
+            default => 'application/octet-stream',
+        };
     }
 
     private function audit(ScholarshipApplication $application, string $action, ?int $fromStatus, ?string $stage, ?string $remarks, User $user, array $payload = []): void

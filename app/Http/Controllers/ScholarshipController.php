@@ -14,6 +14,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
@@ -36,7 +37,16 @@ class ScholarshipController extends Controller
 
     public function create(): View
     {
-        return view('scholarship.form', $this->formData());
+        return view('scholarship.select_scheme', [
+            'schemes' => Scheme::query()->where('is_active', true)->orderBy('name')->get(),
+        ]);
+    }
+
+    public function createForScheme(Scheme $scheme): View
+    {
+        abort_unless($scheme->is_active, 404);
+
+        return view('scholarship.form', $this->formData(null, $scheme));
     }
 
     public function store(Request $request): RedirectResponse
@@ -60,8 +70,21 @@ class ScholarshipController extends Controller
     {
         $application = $this->applications->findVisible($application->id, $request->user());
 
+        $application->load([
+            'academicSession',
+            'scheme',
+            'audits',
+            'documents.uploader',
+            'documents.replacer',
+            'currentDocuments',
+            'tendupattaCollections',
+        ]);
+
         return view('scholarship.show', [
-            'application' => $application->load(['academicSession', 'scheme', 'audits', 'documents', 'tendupattaCollections']),
+            'application' => $application,
+            'legacyDetail' => $this->legacyDetailFor($application),
+            'latestVerification' => $this->latestLegacyVerification($application),
+            'documentLabels' => $this->productionDocumentLabels($application),
         ]);
     }
 
@@ -145,10 +168,11 @@ class ScholarshipController extends Controller
         return redirect()->route('applications.show', $application)->with('status', 'Wallet payment completed and application submitted.');
     }
 
-    private function formData(?ScholarshipApplication $application = null): array
+    private function formData(?ScholarshipApplication $application = null, ?Scheme $selectedScheme = null): array
     {
         return [
             'application' => $application,
+            'selectedScheme' => $selectedScheme,
             'schemes' => Scheme::query()->where('is_active', true)->orderBy('name')->get(),
             'sessions' => AcademicSession::query()->orderByDesc('start_date')->get(),
             'districts' => DB::table('source_data_archives')
@@ -225,8 +249,17 @@ class ScholarshipController extends Controller
         ]);
 
         foreach ($request->file('document_uploads', []) as $documentType => $file) {
+            $disk = (string) config('scholarship_documents.disk', 'public');
+            $storedPath = $file->store('scholarship-documents', $disk);
+
             $payload['documents'][$documentType] = [
-                'file_path' => $file->store('scholarship-documents', 'public'),
+                'file_path' => $storedPath,
+                'storage_disk' => $disk,
+                'original_file_name' => $file->getClientOriginalName(),
+                'stored_file_name' => basename($storedPath),
+                'file_extension' => $file->getClientOriginalExtension(),
+                'mime_type' => $file->getClientMimeType(),
+                'file_size' => $file->getSize(),
                 'source' => 'MANUAL',
             ];
         }
@@ -274,5 +307,88 @@ class ScholarshipController extends Controller
         }
 
         return $response;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function legacyDetailFor(ScholarshipApplication $application): array
+    {
+        if (! $application->legacy_application_id || ! Schema::hasTable('legacy_application')) {
+            return [];
+        }
+
+        $row = DB::table('legacy_application as application')
+            ->leftJoin('legacy_schemes as schemes', 'application.scheme', '=', 'schemes.id')
+            ->leftJoin('legacy_districts as districts', 'application.district', '=', 'districts.district_code')
+            ->leftJoin('legacy_district_union as district_union', 'application.districtunion', '=', 'district_union.id')
+            ->leftJoin('legacy_samiti as samiti', 'application.samitiname', '=', 'samiti.id')
+            ->leftJoin('legacy_phads as phads', 'application.phadname', '=', 'phads.phad_code')
+            ->leftJoin('legacy_blocks as blocks', 'application.block', '=', 'blocks.block_code')
+            ->leftJoin('legacy_gram_panchayat as gram_panchayat', 'application.grampanchayat', '=', 'gram_panchayat.gp_code')
+            ->leftJoin('legacy_cities as cities', 'application.city', '=', 'cities.city_code')
+            ->leftJoin('legacy_wards as wards', 'application.ward', '=', 'wards.ward_code')
+            ->leftJoin('legacy_villages as villages', 'application.village', '=', 'villages.village_code')
+            ->where('application.id', $application->legacy_application_id)
+            ->select([
+                'application.*',
+                'schemes.name as scheme_name',
+                'districts.district_name',
+                'district_union.union_name',
+                'samiti.samiti_name',
+                'phads.phad_name',
+                'blocks.block_name',
+                'gram_panchayat.gp_name',
+                'cities.city_name',
+                'wards.ward_name',
+                'villages.village_name',
+            ])
+            ->first();
+
+        return $row ? (array) $row : [];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function latestLegacyVerification(ScholarshipApplication $application): array
+    {
+        if (! $application->application_number || ! Schema::hasTable('legacy_application_verify')) {
+            return [];
+        }
+
+        $row = DB::table('legacy_application_verify')
+            ->where('application_id', $application->application_number)
+            ->orderByDesc('id')
+            ->first();
+
+        return $row ? (array) $row : [];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function productionDocumentLabels(ScholarshipApplication $application): array
+    {
+        $labels = [
+            'tpcard' => 'Sangrahak Card / संग्राहक कार्ड',
+            'aadharcard' => 'Aadhaar Card of Student / छात्र का आधार कार्ड',
+            'haadharcard' => 'Aadhaar Card of Head of Family / परिवार के मुखिया का आधार कार्ड',
+            'admission_copy' => 'Marksheet Copy / मार्कशीट कॉपी',
+        ];
+
+        if (in_array((int) $application->scheme_id, [3, 4], true)) {
+            $labels['passbook'] = 'Student Bank Passbook (Student PHOTO AND BANK DETAILS) / छात्र बैंक पासबुक';
+            $labels['admission_receipt'] = 'Admission Receipt / प्रवेश रसीद';
+        } else {
+            $labels['head_passbook'] = 'Head of Family Bank Passbook (HEAD OF FAMILY PHOTO AND BANK DETAILS) / परिवार बैंक पासबुक';
+            $labels['passbook'] = 'Front Page of Passbook / पासबुक का प्रथम पृष्ठ';
+        }
+
+        if ($application->currentDocuments->contains('document_type', 'phadbookfile')) {
+            $labels['phadbookfile'] = 'Phad Book / फड़ बुक';
+        }
+
+        return $labels;
     }
 }

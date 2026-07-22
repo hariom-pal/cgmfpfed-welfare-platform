@@ -7,6 +7,7 @@ use App\Http\Controllers\ComingSoonController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\MasterController;
 use App\Http\Controllers\ScholarshipController;
+use App\Http\Controllers\ScholarshipDocumentController;
 use App\Http\Controllers\ScholarshipReportController;
 use App\Http\Controllers\ScholarshipWorkflowController;
 use Illuminate\Support\Facades\Route;
@@ -37,8 +38,17 @@ Route::middleware('auth')->group(function (): void {
     Route::middleware('permission:5,8,9,10,32,33')->group(function (): void {
         Route::get('applications', [ScholarshipController::class, 'index'])->name('applications.index');
         Route::get('applications/create', [ScholarshipController::class, 'create'])->name('applications.create');
+        Route::get('applications/create/{scheme}', [ScholarshipController::class, 'createForScheme'])->name('applications.create.scheme');
         Route::post('applications', [ScholarshipController::class, 'store'])->name('applications.store');
+    });
+
+    Route::middleware('permission:5,6,8,9,10,20,21,27,28,32,33,38')->group(function (): void {
+        Route::get('applications/{application}/documents/{document}', [ScholarshipDocumentController::class, 'show'])->name('applications.documents.show');
+        Route::get('applications/{application}/documents/{document}/download', [ScholarshipDocumentController::class, 'download'])->name('applications.documents.download');
         Route::get('applications/{application}', [ScholarshipController::class, 'show'])->name('applications.show');
+    });
+
+    Route::middleware('permission:5,8,9,10,32,33')->group(function (): void {
         Route::get('applications/{application}/edit', [ScholarshipController::class, 'edit'])->name('applications.edit');
         Route::put('applications/{application}', [ScholarshipController::class, 'update'])->name('applications.update');
         Route::post('applications/{application}/submit', [ScholarshipController::class, 'submit'])->name('applications.submit');

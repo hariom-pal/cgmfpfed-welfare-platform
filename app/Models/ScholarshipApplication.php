@@ -109,7 +109,16 @@ class ScholarshipApplication extends Model
 
     public function documents(): HasMany
     {
-        return $this->hasMany(ScholarshipApplicationDocument::class);
+        return $this->hasMany(ScholarshipApplicationDocument::class)
+            ->orderBy('document_type')
+            ->orderByDesc('version');
+    }
+
+    public function currentDocuments(): HasMany
+    {
+        return $this->hasMany(ScholarshipApplicationDocument::class)
+            ->where('is_current', true)
+            ->orderBy('document_type');
     }
 
     public function tendupattaCollections(): HasMany

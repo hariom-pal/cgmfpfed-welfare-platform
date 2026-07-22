@@ -20,6 +20,16 @@ final class CompleteLegacyDataMigrationSeeder extends Seeder
     private array $applicationIds = [];
 
     /**
+     * @var array<int, array{student_identifier: string|null, scheme_id: int|null}>
+     */
+    private array $applicationDocumentContext = [];
+
+    /**
+     * @var array<string, int>
+     */
+    private array $documentVersions = [];
+
+    /**
      * @var array<string, int>
      */
     private array $userIds = [];
@@ -45,6 +55,7 @@ final class CompleteLegacyDataMigrationSeeder extends Seeder
             $this->migrateApplications();
             $this->loadApplicationMap();
             $this->migrateDocuments();
+            $this->markCurrentDocuments();
             $this->migrateTendupattaVerifications();
             $this->migrateAudits();
             $this->loadApplicationBatchSummaries();
@@ -238,7 +249,7 @@ final class CompleteLegacyDataMigrationSeeder extends Seeder
                         'village_code' => $row->village,
                         'city_code' => $row->city,
                         'ward_code' => $row->ward,
-                        'ward_number' => null,
+                        'ward_number' => $row->ward_number,
                         'class' => $class,
                         'school_college_name' => $row->school_name,
                         'board_university' => $row->university_name,
@@ -281,6 +292,13 @@ final class CompleteLegacyDataMigrationSeeder extends Seeder
                                 'ward' => $row->ward,
                             ],
                             'legacy_head_of_family_bank_present' => trim((string) $row->haccountnumber) !== '',
+                            'legacy_head_of_family_bank' => [
+                                'account_number' => $row->haccountnumber,
+                                'account_holder' => $row->haccountname,
+                                'ifsc' => $row->hifsc !== '' ? strtoupper((string) $row->hifsc) : null,
+                                'bank_name' => $row->hbankname,
+                                'branch' => $row->hbranch,
+                            ],
                         ], JSON_INVALID_UTF8_SUBSTITUTE),
                         'created_by' => $this->userIdForCsc((string) $row->added_by),
                         'updated_by' => $this->userIdForCsc((string) ($row->updated_by ?: $row->added_by)),
@@ -299,6 +317,18 @@ final class CompleteLegacyDataMigrationSeeder extends Seeder
             ->pluck('id', 'application_number')
             ->map(fn (mixed $id): int => (int) $id)
             ->all();
+
+        $this->applicationDocumentContext = [];
+        DB::table('scholarship_applications')
+            ->select('id', 'student_aadhaar', 'scheme_id')
+            ->orderBy('id')
+            ->lazy(1000)
+            ->each(function (object $application): void {
+                $this->applicationDocumentContext[(int) $application->id] = [
+                    'student_identifier' => $application->student_aadhaar !== null ? (string) $application->student_aadhaar : null,
+                    'scheme_id' => $application->scheme_id !== null ? (int) $application->scheme_id : null,
+                ];
+            });
     }
 
     private function loadUserMap(): void
@@ -335,6 +365,7 @@ final class CompleteLegacyDataMigrationSeeder extends Seeder
                         'document_type' => $column,
                         'file_path' => $row->{$column},
                         'source' => 'MANUAL',
+                        'uploaded_by' => $this->userIdForCsc((string) $row->added_by),
                         'created_at' => $this->dateValue($row->add_date) ?? now(),
                     ])->all());
                 });
@@ -350,7 +381,26 @@ final class CompleteLegacyDataMigrationSeeder extends Seeder
                     'document_type' => $row->filetype,
                     'file_path' => $row->filepath,
                     'source' => 'MANUAL',
+                    'uploaded_by' => isset($row->added_by) ? $this->userIdForCsc((string) $row->added_by) : null,
                     'created_at' => $this->dateValue($row->add_date) ?? now(),
+                    ])->all());
+            });
+
+        DB::table($this->source('application_verify'))
+            ->select('application_id', 'phadbookfile', 'updated_by')
+            ->whereNotNull('phadbookfile')
+            ->where('phadbookfile', '!=', '')
+            ->orderBy('id')
+            ->lazy(500)
+            ->chunk(500)
+            ->each(function ($chunk): void {
+                $this->insertDocuments($chunk->map(fn (object $row): array => [
+                    'application_number' => $row->application_id,
+                    'document_type' => 'phadbookfile',
+                    'file_path' => $row->phadbookfile,
+                    'source' => 'MANUAL',
+                    'uploaded_by' => isset($row->updated_by) ? $this->userIdForCsc((string) $row->updated_by) : null,
+                    'created_at' => now(),
                 ])->all());
             });
     }
@@ -367,15 +417,39 @@ final class CompleteLegacyDataMigrationSeeder extends Seeder
                 continue;
             }
 
+            $filePath = (string) $document['file_path'];
+            $storedFileName = basename($filePath);
+            $extension = strtolower((string) pathinfo($filePath, PATHINFO_EXTENSION));
+            $versionKey = $applicationId.':'.(string) $document['document_type'];
+            $version = ($this->documentVersions[$versionKey] ?? 0) + 1;
+            $this->documentVersions[$versionKey] = $version;
+            $context = $this->applicationDocumentContext[$applicationId] ?? ['student_identifier' => null, 'scheme_id' => null];
+
             $rows[] = [
                 'scholarship_application_id' => $applicationId,
+                'student_identifier' => $context['student_identifier'],
+                'scheme_id' => $context['scheme_id'],
                 'document_type' => (string) $document['document_type'],
-                'file_path' => (string) $document['file_path'],
+                'file_path' => $filePath,
+                'storage_disk' => (string) config('scholarship_documents.legacy_disk', 's3'),
+                'original_file_name' => $storedFileName,
+                'stored_file_name' => $storedFileName,
+                'file_extension' => $extension !== '' ? $extension : null,
+                'mime_type' => $this->mimeTypeFromExtension($extension),
+                'file_size' => null,
                 'source' => (string) $document['source'],
+                'uploaded_by' => $document['uploaded_by'] ?? null,
+                'uploaded_at' => $document['created_at'],
                 'is_verified' => false,
                 'verified_by' => null,
                 'verified_at' => null,
                 'remarks' => null,
+                'version' => $version,
+                'is_current' => false,
+                'replaced_by' => null,
+                'replaced_at' => null,
+                'previous_document_id' => null,
+                'editable_after_return' => false,
                 'created_at' => $document['created_at'],
                 'updated_at' => $document['created_at'],
             ];
@@ -385,11 +459,35 @@ final class CompleteLegacyDataMigrationSeeder extends Seeder
             return;
         }
 
-        DB::table('scholarship_application_documents')->upsert(
-            $rows,
-            ['scholarship_application_id', 'document_type'],
-            ['file_path', 'source', 'updated_at'],
-        );
+        DB::table('scholarship_application_documents')->insert($rows);
+    }
+
+    private function markCurrentDocuments(): void
+    {
+        DB::table('scholarship_application_documents')->update(['is_current' => false]);
+
+        DB::statement('
+            UPDATE scholarship_application_documents document
+            JOIN (
+                SELECT scholarship_application_id, document_type, MAX(version) AS max_version
+                FROM scholarship_application_documents
+                GROUP BY scholarship_application_id, document_type
+            ) latest
+                ON latest.scholarship_application_id = document.scholarship_application_id
+                AND latest.document_type = document.document_type
+                AND latest.max_version = document.version
+            SET document.is_current = 1
+        ');
+    }
+
+    private function mimeTypeFromExtension(?string $extension): string
+    {
+        return match (strtolower((string) $extension)) {
+            'jpg', 'jpeg' => 'image/jpeg',
+            'png' => 'image/png',
+            'pdf' => 'application/pdf',
+            default => 'application/octet-stream',
+        };
     }
 
     private function migrateTendupattaVerifications(): void

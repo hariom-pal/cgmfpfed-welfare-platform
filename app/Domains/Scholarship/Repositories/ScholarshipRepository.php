@@ -5,11 +5,13 @@ declare(strict_types=1);
 namespace App\Domains\Scholarship\Repositories;
 
 use App\Domains\Scholarship\Contracts\ScholarshipRepositoryInterface;
+use App\Domains\Scholarship\Enums\ScholarshipApplicationStatus;
 use App\Models\ScholarshipApplication;
 use App\Models\User;
 use App\Repositories\BaseRepository;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\DB;
 
 final class ScholarshipRepository extends BaseRepository implements ScholarshipRepositoryInterface
 {
@@ -20,8 +22,18 @@ final class ScholarshipRepository extends BaseRepository implements ScholarshipR
             ->latest();
 
         return match ((int) $user->user_type) {
-            2, 4 => $query->where('district_union_id', (int) $user->districtunion),
+            (int) config('csc.vle_role_id') => $query->where('applicant_user_id', $user->id),
+            2, 4 => $query->whereIn('district_union_id', $this->districtUnionScope($user)),
             3 => $query->where('samiti_id', (int) $user->samiti),
+            5 => $query->whereIn('district_union_id', $this->circleDistrictUnionScope($user)),
+            6 => $query->whereIn('status', [
+                ScholarshipApplicationStatus::RecommendedForPayment->value,
+                ScholarshipApplicationStatus::RecommendedForPaymentViaCCF->value,
+                ScholarshipApplicationStatus::FinalApplicationForPayment->value,
+                ScholarshipApplicationStatus::PaymentBatchSubmitted->value,
+                ScholarshipApplicationStatus::PaymentFailed->value,
+                ScholarshipApplicationStatus::PaymentFailedViaCCF->value,
+            ]),
             default => $query,
         };
     }
@@ -68,5 +80,33 @@ final class ScholarshipRepository extends BaseRepository implements ScholarshipR
         $application->fill($data)->save();
 
         return $application->refresh();
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function districtUnionScope(User $user): array
+    {
+        $districtUnion = (int) $user->districtunion;
+
+        return in_array($districtUnion, [5, 32], true) ? [5, 32] : [$districtUnion];
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function circleDistrictUnionScope(User $user): array
+    {
+        $districtUnionIds = (array) DB::table('district_unions')
+            ->where('description', 'like', '%, circle ID: '.((int) $user->circle))
+            ->pluck('id')
+            ->map(fn (mixed $id): int => (int) $id)
+            ->all();
+
+        if (array_intersect($districtUnionIds, [5, 32]) !== []) {
+            $districtUnionIds = array_values(array_unique([...$districtUnionIds, 5, 32]));
+        }
+
+        return $districtUnionIds;
     }
 }

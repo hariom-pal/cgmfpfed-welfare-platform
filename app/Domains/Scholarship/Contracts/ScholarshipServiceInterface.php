@@ -34,7 +34,11 @@ interface ScholarshipServiceInterface
      */
     public function resubmit(ScholarshipApplication $application, array $data, User $user): ScholarshipApplication;
 
-    public function transition(ScholarshipApplication $application, string $action, ?string $remarks, User $user): ScholarshipApplication;
+    /**
+     * @param  list<string>  $correctionSections
+     * @param  list<string>  $editableDocuments
+     */
+    public function transition(ScholarshipApplication $application, string $action, ?string $remarks, User $user, array $correctionSections = [], array $editableDocuments = []): ScholarshipApplication;
 
     /**
      * @param  array<int, int>  $applicationIds

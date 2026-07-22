@@ -1,9 +1,12 @@
 @extends('layouts.admin')
 
 @php($isEdit = $application !== null)
-@php($selectedScheme = (int) old('scheme_id', $application?->scheme_id ?: ($schemes->first()?->id ?? 0)))
-@php($isCourseScheme = in_array($selectedScheme, [3, 4], true))
-@php($documents = $application?->documents?->keyBy('document_type') ?? collect())
+@php($selectedSchemeModel = $selectedScheme ?? null)
+@php($selectedSchemeId = (int) old('scheme_id', $application?->scheme_id ?: ($selectedSchemeModel?->id ?? 0)))
+@php($isCourseScheme = in_array($selectedSchemeId, [3, 4], true))
+@php($documents = $application?->currentDocuments?->keyBy('document_type') ?? collect())
+@php($editableDocuments = collect($application?->metadata['editable_documents'] ?? []))
+@php($isReturnedForCorrection = $application && ! $application->is_draft && $editableDocuments->isNotEmpty())
 
 @section('title', $isEdit ? 'Edit Scholarship Application' : 'New Scholarship Application')
 @section('heading', $isEdit ? 'Edit Scholarship Application' : 'New Scholarship Application')
@@ -41,13 +44,13 @@
                 </div>
                 <div class="col-md-4">
                     <label class="form-label">Scheme / योजना <span class="text-danger">*</span></label>
-                    <select class="form-select" name="scheme_id" id="scheme_id" required @disabled($application && ! $application->is_draft)>
+                    <select class="form-select" name="scheme_id" id="scheme_id" required @disabled($selectedSchemeModel || ($application && ! $application->is_draft))>
                         @foreach($schemes as $scheme)
-                            <option value="{{ $scheme->id }}" @selected(old('scheme_id', $application?->scheme_id) == $scheme->id)>{{ $scheme->name }}</option>
+                            <option value="{{ $scheme->id }}" @selected(old('scheme_id', $application?->scheme_id ?: $selectedSchemeModel?->id) == $scheme->id)>{{ $scheme->name }}</option>
                         @endforeach
                     </select>
-                    @if($application && ! $application->is_draft)
-                        <input type="hidden" name="scheme_id" value="{{ $application->scheme_id }}">
+                    @if($selectedSchemeModel || ($application && ! $application->is_draft))
+                        <input type="hidden" name="scheme_id" value="{{ $selectedSchemeModel?->id ?: $application->scheme_id }}">
                     @endif
                 </div>
                 <div class="col-md-4 course-field">
@@ -223,11 +226,21 @@
                 ] as $type => $label)
                     @if($type !== 'admission_receipt' || $isCourseScheme)
                         <div class="col-md-6">
+                            @php($document = $documents->get($type))
+                            @php($canEditDocument = ! $isReturnedForCorrection || $editableDocuments->contains($type) || ! $document)
                             <label class="form-label">{{ $label }} <span class="text-danger">*</span></label>
-                            <input class="form-control" type="file" name="document_uploads[{{ $type }}]" @required(! $documents->has($type))>
+                            <input class="form-control" type="file" name="document_uploads[{{ $type }}]" @required(! $document) @disabled(! $canEditDocument)>
                             <div class="form-text">Max size: 2MB. Allowed: jpg, jpeg, png, pdf.</div>
-                            @if($documents->has($type))
-                                <div class="small text-muted">Current: {{ $documents->get($type)?->file_path }}</div>
+                            @if($document)
+                                <div class="small mt-1">
+                                    Current:
+                                    <a href="{{ route('applications.documents.show', [$application, $document]) }}" target="_blank" rel="noopener">{{ $document->displayName() }}</a>
+                                    <a class="ms-2" href="{{ route('applications.documents.download', [$application, $document]) }}">Download</a>
+                                    <span class="text-muted ms-2">v{{ $document->version }}</span>
+                                </div>
+                            @endif
+                            @if(! $canEditDocument)
+                                <div class="small text-muted">Replacement is locked because this document was not selected for correction.</div>
                             @endif
                         </div>
                     @endif

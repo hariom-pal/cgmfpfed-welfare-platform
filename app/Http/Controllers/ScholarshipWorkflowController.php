@@ -33,9 +33,20 @@ class ScholarshipWorkflowController extends Controller
         $data = $request->validate([
             'action' => ['required', 'in:recommend,return,reject'],
             'remarks' => ['nullable', 'string'],
+            'correction_sections' => ['nullable', 'array'],
+            'correction_sections.*' => ['string', 'max:80'],
+            'editable_documents' => ['nullable', 'array'],
+            'editable_documents.*' => ['string', 'max:80'],
         ]);
 
-        $this->service->transition($application, $data['action'], $data['remarks'] ?? null, $request->user());
+        $this->service->transition(
+            $application,
+            $data['action'],
+            $data['remarks'] ?? null,
+            $request->user(),
+            $data['correction_sections'] ?? [],
+            $data['editable_documents'] ?? [],
+        );
 
         return back()->with('status', 'Workflow action recorded.');
     }

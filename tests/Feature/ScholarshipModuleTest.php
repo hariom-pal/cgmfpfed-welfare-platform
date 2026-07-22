@@ -9,11 +9,13 @@ use App\Domains\Scholarship\Enums\ScholarshipApplicationStatus;
 use App\Models\AcademicSession;
 use App\Models\Scheme;
 use App\Models\ScholarshipApplication;
+use App\Models\ScholarshipApplicationDocument;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
 
@@ -120,9 +122,14 @@ final class ScholarshipModuleTest extends TestCase
     {
         $this->userWithPermissions((int) config('csc.vle_role_id'));
         AcademicSession::factory()->create(['name' => '2026-27']);
-        Scheme::factory()->create(['id' => 1, 'code' => 'SCH1', 'name' => 'Meritorious Student Award Scheme']);
+        $scheme = Scheme::factory()->create(['id' => 1, 'code' => 'SCH1', 'name' => 'Meritorious Student Award Scheme']);
 
         $this->get(route('applications.create'))
+            ->assertOk()
+            ->assertSee('Select a Scheme to continue to add application', false)
+            ->assertSee(route('applications.create.scheme', $scheme), false);
+
+        $this->get(route('applications.create.scheme', $scheme))
             ->assertOk()
             ->assertSee('Information Regarding Primary Society', false)
             ->assertSee('Head of Family Detail', false)
@@ -198,6 +205,151 @@ final class ScholarshipModuleTest extends TestCase
         ]);
     }
 
+    public function test_document_uploads_keep_metadata_and_version_history(): void
+    {
+        $user = $this->userWithPermissions();
+        $session = AcademicSession::factory()->create(['name' => '2026-27']);
+        Scheme::factory()->create(['id' => 1, 'code' => 'SCH1', 'name' => 'Class Scholarship']);
+
+        $application = $this->service()->createDraft($this->validPayload($session->id, 1, [
+            'documents' => [
+                'tpcard' => [
+                    'file_path' => 'scholarship-documents/first.pdf',
+                    'storage_disk' => 'public',
+                    'original_file_name' => 'first.pdf',
+                    'stored_file_name' => 'first.pdf',
+                    'file_extension' => 'pdf',
+                    'mime_type' => 'application/pdf',
+                    'file_size' => 1024,
+                ],
+                'haadharcard' => ['file_path' => 'tests/hof-aadhaar.pdf'],
+                'aadharcard' => ['file_path' => 'tests/student-aadhaar.pdf'],
+                'admission_copy' => ['file_path' => 'tests/marksheet.pdf'],
+                'passbook' => ['file_path' => 'tests/passbook.pdf'],
+            ],
+        ]), $user);
+
+        $application = $this->service()->updateDraft($application, $this->validPayload($session->id, 1, [
+            'documents' => [
+                'tpcard' => [
+                    'file_path' => 'scholarship-documents/second.pdf',
+                    'original_file_name' => 'second.pdf',
+                    'stored_file_name' => 'second.pdf',
+                    'file_extension' => 'pdf',
+                    'mime_type' => 'application/pdf',
+                    'file_size' => 2048,
+                ],
+            ],
+        ]), $user);
+
+        $documents = ScholarshipApplicationDocument::query()
+            ->where('scholarship_application_id', $application->id)
+            ->where('document_type', 'tpcard')
+            ->orderBy('version')
+            ->get();
+
+        $this->assertCount(2, $documents);
+        $this->assertFalse($documents[0]->is_current);
+        $this->assertTrue($documents[1]->is_current);
+        $this->assertSame(2, $documents[1]->version);
+        $this->assertSame($documents[0]->id, $documents[1]->previous_document_id);
+        $this->assertSame('111122223333', $documents[1]->student_identifier);
+        $this->assertSame(1, $documents[1]->scheme_id);
+        $this->assertSame('second.pdf', $documents[1]->original_file_name);
+        $this->assertSame('application/pdf', $documents[1]->mime_type);
+        $this->assertSame(2048, $documents[1]->file_size);
+        $this->assertSame($user->id, $documents[1]->uploaded_by);
+    }
+
+    public function test_document_is_served_inline_through_authorized_controller(): void
+    {
+        Storage::fake('public');
+
+        $user = $this->userWithPermissions();
+        $session = AcademicSession::factory()->create(['name' => '2026-27']);
+        Scheme::factory()->create(['id' => 1, 'code' => 'SCH1', 'name' => 'Class Scholarship']);
+        Storage::disk('public')->put('scholarship-documents/student.pdf', '%PDF-1.4');
+
+        $application = $this->service()->createDraft($this->validPayload($session->id, 1, [
+            'documents' => [
+                'tpcard' => [
+                    'file_path' => 'scholarship-documents/student.pdf',
+                    'original_file_name' => 'student.pdf',
+                    'stored_file_name' => 'student.pdf',
+                    'file_extension' => 'pdf',
+                    'mime_type' => 'application/pdf',
+                    'file_size' => 8,
+                ],
+                'haadharcard' => ['file_path' => 'tests/hof-aadhaar.pdf'],
+                'aadharcard' => ['file_path' => 'tests/student-aadhaar.pdf'],
+                'admission_copy' => ['file_path' => 'tests/marksheet.pdf'],
+                'passbook' => ['file_path' => 'tests/passbook.pdf'],
+            ],
+        ]), $user);
+
+        $document = $application->currentDocuments()->where('document_type', 'tpcard')->firstOrFail();
+
+        $this->get(route('applications.documents.show', [$application, $document]))
+            ->assertOk()
+            ->assertHeader('content-type', 'application/pdf');
+
+        $this->get(route('applications.documents.download', [$application, $document]))
+            ->assertOk()
+            ->assertHeader('content-disposition', 'attachment; filename=student.pdf');
+    }
+
+    public function test_vle_cannot_access_documents_for_other_vle_applications(): void
+    {
+        Storage::fake('public');
+
+        $owner = $this->userWithPermissions((int) config('csc.vle_role_id'), '313676900017');
+        $session = AcademicSession::factory()->create(['name' => '2026-27']);
+        Scheme::factory()->create(['id' => 1, 'code' => 'SCH1', 'name' => 'Class Scholarship']);
+        Storage::disk('public')->put('scholarship-documents/student.pdf', '%PDF-1.4');
+
+        $application = $this->service()->createDraft($this->validPayload($session->id, 1, [
+            'documents' => [
+                'tpcard' => [
+                    'file_path' => 'scholarship-documents/student.pdf',
+                    'original_file_name' => 'student.pdf',
+                    'stored_file_name' => 'student.pdf',
+                    'file_extension' => 'pdf',
+                    'mime_type' => 'application/pdf',
+                ],
+                'haadharcard' => ['file_path' => 'tests/hof-aadhaar.pdf'],
+                'aadharcard' => ['file_path' => 'tests/student-aadhaar.pdf'],
+                'admission_copy' => ['file_path' => 'tests/marksheet.pdf'],
+                'passbook' => ['file_path' => 'tests/passbook.pdf'],
+            ],
+        ]), $owner);
+        $document = $application->currentDocuments()->where('document_type', 'tpcard')->firstOrFail();
+
+        $other = $this->userWithPermissions((int) config('csc.vle_role_id'), '313676900018');
+        $this->actingAs($other);
+
+        $this->get(route('applications.documents.show', [$application, $document]))->assertNotFound();
+    }
+
+    public function test_return_for_correction_locks_unselected_documents(): void
+    {
+        $user = $this->userWithPermissions();
+        $session = AcademicSession::factory()->create(['name' => '2026-27']);
+        Scheme::factory()->create(['id' => 1, 'code' => 'SCH1', 'name' => 'Class Scholarship']);
+
+        $application = $this->service()->createDraft($this->validPayload($session->id, 1), $user);
+        $application = $this->service()->submit($application, $user);
+        $application = $this->service()->transition($application, 'return', 'Replace passbook only', $user, ['supporting_documents'], ['passbook']);
+
+        $this->assertSame(['passbook'], $application->metadata['editable_documents']);
+        $this->assertTrue((bool) $application->currentDocuments()->where('document_type', 'passbook')->value('editable_after_return'));
+        $this->assertFalse((bool) $application->currentDocuments()->where('document_type', 'tpcard')->value('editable_after_return'));
+
+        $this->expectException(ValidationException::class);
+        $this->service()->resubmit($application, $this->validPayload($session->id, 1, [
+            'documents' => ['tpcard' => ['file_path' => 'tests/replaced.pdf']],
+        ]), $user);
+    }
+
     private function service(): ScholarshipServiceInterface
     {
         return app(ScholarshipServiceInterface::class);
@@ -261,11 +413,13 @@ final class ScholarshipModuleTest extends TestCase
             'csc_id' => $cscId,
         ]);
 
-        DB::table('role_priviledge')->insert([
-            ['id' => 9101, 'role_id' => $roleId, 'permission_id' => 5],
-            ['id' => 9102, 'role_id' => $roleId, 'permission_id' => 6],
-            ['id' => 9103, 'role_id' => $roleId, 'permission_id' => 16],
-        ]);
+        $nextId = ((int) DB::table('role_priviledge')->max('id')) + 1;
+        foreach ([5, 6, 16] as $offset => $permissionId) {
+            DB::table('role_priviledge')->updateOrInsert(
+                ['role_id' => $roleId, 'permission_id' => $permissionId],
+                ['id' => $nextId + $offset],
+            );
+        }
 
         $this->actingAs($user);
 
