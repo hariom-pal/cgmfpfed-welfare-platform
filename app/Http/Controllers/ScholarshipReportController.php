@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Domains\Scholarship\Contracts\ScholarshipRepositoryInterface;
+use App\Domains\Scholarship\Enums\ApplicationState;
+use App\Domains\Scholarship\Enums\PaymentState;
 use App\Models\Scheme;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -41,9 +43,14 @@ class ScholarshipReportController extends Controller
             'currentScheme' => $currentScheme,
             'totals' => [
                 'applications' => (clone $visible)->count(),
-                'submitted' => (clone $visible)->whereIn('application_state', ['in_workflow', 'returned_for_correction', 'rejected', 'completed'])->count(),
+                'submitted' => (clone $visible)->whereIn('application_state', [
+                    ApplicationState::InWorkflow->value,
+                    ApplicationState::ReturnedForCorrection->value,
+                    ApplicationState::Rejected->value,
+                    ApplicationState::Completed->value,
+                ])->count(),
                 'amount' => (clone $visible)->sum('amount'),
-                'paid' => (clone $visible)->where('payment_state', 'beneficiary_payment_success')->sum('amount'),
+                'paid' => (clone $visible)->where('payment_state', PaymentState::BeneficiaryPaymentSuccess->value)->sum('amount'),
             ],
             'byStatus' => $statusRows,
         ]);

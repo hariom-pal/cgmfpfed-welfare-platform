@@ -4,11 +4,14 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class ScholarshipWorkflowTransition extends Model
 {
+    use HasFactory;
+
     protected $fillable = [
         'scholarship_application_id',
         'from_application_state',

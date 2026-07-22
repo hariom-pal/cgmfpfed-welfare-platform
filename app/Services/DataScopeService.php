@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Domains\Scholarship\Enums\ApplicationState;
 use App\Domains\Scholarship\Enums\ScholarshipApplicationStatus;
+use App\Domains\Scholarship\Enums\WorkflowStage;
 use App\Models\ScholarshipApplication;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
@@ -24,7 +26,12 @@ final class DataScopeService
         $role = $this->roles->key($user);
 
         if ($role !== 'VLE') {
-            $query->whereIn('application_state', ['in_workflow', 'returned_for_correction', 'rejected', 'completed']);
+            $query->whereIn('application_state', [
+                ApplicationState::InWorkflow->value,
+                ApplicationState::ReturnedForCorrection->value,
+                ApplicationState::Rejected->value,
+                ApplicationState::Completed->value,
+            ]);
         }
 
         return match ($role) {
@@ -32,14 +39,14 @@ final class DataScopeService
             2, 4 => $query->whereIn('district_union_id', $this->districtUnionScope($user)),
             3 => $query->where('samiti_id', (int) $user->samiti),
             5 => $query->whereIn('district_union_id', $this->circleDistrictUnionScope($user)),
-            6 => $query->where('workflow_stage', 'accounts'),
+            6 => $query->where('workflow_stage', WorkflowStage::Accounts->value),
             default => $query,
         };
     }
 
     public function canViewScholarshipApplication(User $user, ScholarshipApplication $application): bool
     {
-        if ($this->roles->key($user) !== 'VLE' && $application->application_state === 'created') {
+        if ($this->roles->key($user) !== 'VLE' && $application->application_state === ApplicationState::Created) {
             return false;
         }
 

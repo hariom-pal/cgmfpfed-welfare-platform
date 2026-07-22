@@ -4,11 +4,15 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Domains\Scholarship\Enums\PaymentAttemptState;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class ScholarshipPaymentAttempt extends Model
 {
+    use HasFactory;
+
     protected $fillable = [
         'scholarship_application_id',
         'wallet_transaction_id',
@@ -40,6 +44,7 @@ class ScholarshipPaymentAttempt extends Model
     {
         return [
             'amount' => 'decimal:2',
+            'payment_state' => PaymentAttemptState::class,
             'payment_requested_at' => 'datetime',
             'payment_completed_at' => 'datetime',
             'request_payload' => 'array',

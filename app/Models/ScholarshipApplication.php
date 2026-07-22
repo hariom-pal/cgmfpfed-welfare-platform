@@ -4,7 +4,13 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Domains\Scholarship\Enums\ApplicationState;
+use App\Domains\Scholarship\Enums\ApprovalState;
+use App\Domains\Scholarship\Enums\PaymentState;
 use App\Domains\Scholarship\Enums\ScholarshipApplicationStatus;
+use App\Domains\Scholarship\Enums\SubmissionState;
+use App\Domains\Scholarship\Enums\WorkflowStage;
+use App\Domains\Scholarship\Enums\WorkflowState;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -210,6 +216,12 @@ class ScholarshipApplication extends Model
     {
         return [
             'status' => 'integer',
+            'application_state' => ApplicationState::class,
+            'submission_state' => SubmissionState::class,
+            'workflow_state' => WorkflowState::class,
+            'workflow_stage' => WorkflowStage::class,
+            'approval_state' => ApprovalState::class,
+            'payment_state' => PaymentState::class,
             'is_draft' => 'boolean',
             'submitted_at' => 'datetime',
             'entered_workflow_at' => 'datetime',

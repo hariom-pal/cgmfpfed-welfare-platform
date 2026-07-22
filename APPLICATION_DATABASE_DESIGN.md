@@ -32,6 +32,16 @@ Legacy source data also used `payment_txn_status`, where `1` meant the VLE walle
 - `payment_state`: wallet and beneficiary payment state, for example `wallet_pending`, `wallet_success`, `beneficiary_payment_submitted`, `beneficiary_payment_success`.
 - `entered_workflow_at`, `returned_at`, `rejected_at`, `completed_at`: lifecycle timestamps.
 
+Laravel represents these columns using typed backed enums:
+
+- `ApplicationState`
+- `SubmissionState`
+- `WorkflowState`
+- `WorkflowStage`
+- `ApprovalState`
+- `PaymentState`
+- `PaymentAttemptState`
+
 New tables:
 
 - `scholarship_workflow_transitions`: normalized transition history across application, workflow, payment, and approval states.
@@ -42,6 +52,12 @@ Existing compatibility columns remain during migration:
 - `status`, `status_label`, `current_stage`, `is_draft`, `wallet_paid_at`, `payment_status`, `paid_at`.
 
 They are now mirrors for existing screens/tests and not the long-term domain model.
+
+Factories were added for normalized lifecycle records:
+
+- `ScholarshipApplicationFactory`
+- `ScholarshipWorkflowTransitionFactory`
+- `ScholarshipPaymentAttemptFactory`
 
 ## 4. ER Diagram
 
