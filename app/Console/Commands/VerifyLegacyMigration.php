@@ -53,7 +53,7 @@ final class VerifyLegacyMigration extends Command
         }
 
         $temporaryImportTables = DB::table('information_schema.tables')
-            ->where('table_schema', DB::raw('DATABASE()'))
+            ->where('table_schema', DB::connection()->getDatabaseName())
             ->where('table_name', 'like', 'legacy\_%')
             ->count();
 

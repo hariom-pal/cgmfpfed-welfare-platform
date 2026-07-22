@@ -6,6 +6,7 @@ namespace App\Http\Requests;
 
 use App\Support\MasterRegistry;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
 
 class StoreMasterRequest extends FormRequest
@@ -23,21 +24,43 @@ class StoreMasterRequest extends FormRequest
         $master = app(MasterRegistry::class)->get((string) $this->route('masterKey'));
         $table = $master['table'];
 
-        return [
-            'code' => [
-                'required',
-                'string',
-                'max:40',
-                Rule::unique($table, 'code')->whereNull('deleted_at'),
-            ],
-            'name' => [
-                'required',
-                'string',
-                'max:255',
-                Rule::unique($table, 'name')->whereNull('deleted_at'),
-            ],
-            'description' => ['nullable', 'string', 'max:2000'],
-            'is_active' => ['sometimes', 'boolean'],
-        ];
+        return $this->rulesFromMaster($master, $table);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function rulesFromMaster(array $master, string $table): array
+    {
+        $rules = ['is_active' => ['sometimes', 'boolean']];
+
+        foreach ($master['fields'] as $field) {
+            $name = (string) $field['name'];
+            if (! Schema::hasColumn($table, $name)) {
+                continue;
+            }
+
+            $fieldRules = [(bool) ($field['required'] ?? false) ? 'required' : 'nullable'];
+            $fieldRules[] = match ($field['type'] ?? 'text') {
+                'date' => 'date',
+                default => 'string',
+            };
+
+            if (isset($field['max']) && ($field['type'] ?? 'text') !== 'date') {
+                $fieldRules[] = 'max:'.(int) $field['max'];
+            }
+
+            if ((bool) ($field['unique'] ?? false)) {
+                $uniqueRule = Rule::unique($table, $name);
+                if (Schema::hasColumn($table, 'deleted_at')) {
+                    $uniqueRule->whereNull('deleted_at');
+                }
+                $fieldRules[] = $uniqueRule;
+            }
+
+            $rules[$name] = $fieldRules;
+        }
+
+        return $rules;
     }
 }

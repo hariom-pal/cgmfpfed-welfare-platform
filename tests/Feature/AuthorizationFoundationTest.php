@@ -32,10 +32,12 @@ final class AuthorizationFoundationTest extends TestCase
     {
         $vle = $this->legacyUser((int) config('csc.vle_role_id'), ['csc_id' => '313676900017']);
 
-        $labels = collect(app(MenuBuilder::class)->buildFor($vle))->pluck('label')->all();
+        $menu = collect(app(MenuBuilder::class)->buildFor($vle));
+        $labels = $menu->pluck('label')->all();
+        $scholarshipChildren = collect($menu->firstWhere('label', 'Scholarship')['children'] ?? [])->pluck('label')->all();
 
-        $this->assertContains('Add Application', $labels);
-        $this->assertContains('Application', $labels);
+        $this->assertContains('Scholarship', $labels);
+        $this->assertContains('Add Application', $scholarshipChildren);
         $this->assertNotContains('Payment', $labels);
         $this->assertNotContains('Settings', $labels);
 
@@ -49,14 +51,19 @@ final class AuthorizationFoundationTest extends TestCase
         $admin = $this->legacyUser(1);
         $this->grant($admin, [1, 2, 4, 35, 38]);
 
-        $labels = collect(app(MenuBuilder::class)->buildFor($admin))->pluck('label')->all();
+        $menu = collect(app(MenuBuilder::class)->buildFor($admin));
+        $labels = $menu->pluck('label')->all();
+        $otherChildren = collect($menu->firstWhere('label', 'Other Modules')['children'] ?? [])->pluck('label')->all();
 
-        $this->assertContains('Dashboard', $labels);
-        $this->assertContains('Application', $labels);
-        $this->assertContains('Batches', $labels);
-        $this->assertContains('Payment', $labels);
-        $this->assertContains('Samiti Wise Count', $labels);
-        $this->assertContains('Master Management', $labels);
+        $this->assertSame('Dashboard', $labels[0]);
+        $this->assertSame('Masters', $labels[1]);
+        $this->assertContains('Scholarship', $labels);
+        $this->assertContains('Beema', $labels);
+        $this->assertContains('Reports', $labels);
+        $this->assertContains('User Management', $labels);
+        $this->assertContains('Other Modules', $labels);
+        $this->assertContains('Workflow Batches', $otherChildren);
+        $this->assertContains('Payment', $otherChildren);
     }
 
     public function test_master_management_is_super_admin_only_even_when_other_roles_have_permission(): void

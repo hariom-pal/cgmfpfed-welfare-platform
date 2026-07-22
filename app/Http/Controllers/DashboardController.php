@@ -38,7 +38,7 @@ final class DashboardController extends Controller
         });
         $visibleApplications = $user
             ? $scope->applyScholarshipVisibility(ScholarshipApplication::query(), $user)
-            : ScholarshipApplication::query()->whereRaw('1 = 0');
+            : ScholarshipApplication::query()->whereKey(-1);
         $currentSchemeId = (int) ($request->query('scheme') ?: $request->session()->get('current_scheme_id'));
         $currentScheme = $currentSchemeId > 0 ? Scheme::query()->find($currentSchemeId) : null;
 

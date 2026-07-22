@@ -11,9 +11,11 @@
 @section('content')
     <x-card :title="$record->name" icon="fa-regular fa-eye">
         <dl class="row mb-0">
-            <dt class="col-sm-3">Code</dt><dd class="col-sm-9">{{ $record->code }}</dd>
-            <dt class="col-sm-3">Name</dt><dd class="col-sm-9">{{ $record->name }}</dd>
-            <dt class="col-sm-3">Description</dt><dd class="col-sm-9">{{ $record->description ?: 'Not provided' }}</dd>
+            @foreach($master['fields'] as $field)
+                @php($value = $record->getAttribute($field['name']))
+                <dt class="col-sm-3">{{ $field['label'] }}</dt>
+                <dd class="col-sm-9">{{ $value instanceof \Carbon\CarbonInterface ? $value->format('d M Y') : ($value ?: 'Not provided') }}</dd>
+            @endforeach
             <dt class="col-sm-3">Status</dt><dd class="col-sm-9"><x-status-badge :active="$record->is_active" /></dd>
             <dt class="col-sm-3">Created</dt><dd class="col-sm-9">{{ $record->created_at?->format('d M Y H:i') }}</dd>
         </dl>

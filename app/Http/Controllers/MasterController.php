@@ -104,7 +104,7 @@ final class MasterController extends Controller
     private function context(string $masterKey): array
     {
         $master = $this->registry->get($masterKey);
-        $repository = new MasterRepository(app($master['model']));
+        $repository = new MasterRepository(app($master['model']), $master);
 
         return [
             'masterKey' => $masterKey,

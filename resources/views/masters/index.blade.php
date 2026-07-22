@@ -46,7 +46,10 @@
                     <thead>
                     <tr>
                         @php
-                            $columns = ['code' => 'Code', 'name' => 'Name', 'is_active' => 'Status', 'created_at' => 'Created'];
+                            $fieldLabels = collect($master['fields'])->mapWithKeys(fn ($field) => [$field['name'] => $field['label']]);
+                            $columns = collect($master['display_columns'])->mapWithKeys(fn ($column) => [$column => $fieldLabels[$column] ?? str($column)->headline()->toString()])->all();
+                            $columns['is_active'] = 'Status';
+                            $columns['created_at'] = 'Created';
                         @endphp
                         @foreach($columns as $column => $title)
                             @php
@@ -65,15 +68,18 @@
                     <tbody>
                     @foreach($records as $record)
                         <tr>
-                            <td class="fw-semibold">{{ $record->code }}</td>
-                            <td>
-                                <div>{{ $record->name }}</div>
-                                @if($record->description)
-                                    <div class="small text-muted text-truncate" style="max-width: 420px;">{{ $record->description }}</div>
-                                @endif
-                            </td>
-                            <td><x-status-badge :active="$record->is_active" /></td>
-                            <td>{{ $record->created_at?->format('d M Y') }}</td>
+                            @foreach($columns as $column => $title)
+                                <td @class(['fw-semibold' => $loop->first])>
+                                    @if($column === 'is_active')
+                                        <x-status-badge :active="$record->is_active" />
+                                    @elseif($column === 'created_at')
+                                        {{ $record->created_at?->format('d M Y') }}
+                                    @else
+                                        @php($value = $record->getAttribute($column))
+                                        {{ $value instanceof \Carbon\CarbonInterface ? $value->format('d M Y') : $value }}
+                                    @endif
+                                </td>
+                            @endforeach
                             <td class="text-end">
                                 <x-action-buttons :master-key="$masterKey" :record="$record" />
                             </td>

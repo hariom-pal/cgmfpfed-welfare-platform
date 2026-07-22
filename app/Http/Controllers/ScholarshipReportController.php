@@ -7,7 +7,6 @@ namespace App\Http\Controllers;
 use App\Domains\Scholarship\Contracts\ScholarshipRepositoryInterface;
 use App\Models\Scheme;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 
 class ScholarshipReportController extends Controller
@@ -17,7 +16,6 @@ class ScholarshipReportController extends Controller
     public function index(Request $request): View
     {
         $visible = $this->applications->queryVisibleFor($request->user());
-        $statusVisible = $this->applications->queryVisibleFor($request->user());
         $filters = $request->query();
         $currentSchemeId = (int) ($request->query('scheme') ?: $request->session()->get('current_scheme_id'));
         $currentScheme = $currentSchemeId > 0 ? Scheme::query()->find($currentSchemeId) : null;
@@ -25,9 +23,18 @@ class ScholarshipReportController extends Controller
         if ($currentScheme) {
             $request->session()->put('current_scheme_id', $currentScheme->id);
             $visible->where('scheme_id', $currentScheme->id);
-            $statusVisible->where('scheme_id', $currentScheme->id);
             $filters['scheme_id'] = $currentScheme->id;
         }
+
+        $statusRows = (clone $visible)
+            ->get(['status_label'])
+            ->countBy('status_label')
+            ->sortDesc()
+            ->map(fn (int $aggregate, string $status): object => (object) [
+                'status_label' => $status,
+                'aggregate' => $aggregate,
+            ])
+            ->values();
 
         return view('scholarship.reports.index', [
             'applications' => $this->applications->paginateFor($request->user(), $filters, 20),
@@ -38,11 +45,7 @@ class ScholarshipReportController extends Controller
                 'amount' => (clone $visible)->sum('amount'),
                 'paid' => (clone $visible)->where('payment_status', 'success')->sum('amount'),
             ],
-            'byStatus' => $statusVisible
-                ->select('status_label', DB::raw('count(*) as aggregate'))
-                ->groupBy('status_label')
-                ->orderByDesc('aggregate')
-                ->get(),
+            'byStatus' => $statusRows,
         ]);
     }
 }

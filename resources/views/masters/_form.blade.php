@@ -4,21 +4,25 @@
 @endif
 <x-form-section :title="$label.' Details'" />
 <div class="row g-3">
-    <div class="col-md-4">
-        <label for="code" class="form-label required">Code</label>
-        <input id="code" name="code" class="form-control @error('code') is-invalid @enderror" value="{{ old('code', $record->code ?? '') }}" maxlength="40" required>
-        @error('code')<div class="invalid-feedback">{{ $message }}</div>@enderror
-    </div>
-    <div class="col-md-8">
-        <label for="name" class="form-label required">Name</label>
-        <input id="name" name="name" class="form-control @error('name') is-invalid @enderror" value="{{ old('name', $record->name ?? '') }}" required>
-        @error('name')<div class="invalid-feedback">{{ $message }}</div>@enderror
-    </div>
-    <div class="col-12">
-        <label for="description" class="form-label">Description</label>
-        <textarea id="description" name="description" class="form-control @error('description') is-invalid @enderror" rows="4">{{ old('description', $record->description ?? '') }}</textarea>
-        @error('description')<div class="invalid-feedback">{{ $message }}</div>@enderror
-    </div>
+    @foreach($master['fields'] as $field)
+        @php
+            $name = $field['name'];
+            $type = $field['type'] ?? 'text';
+            $required = (bool) ($field['required'] ?? false);
+            $recordModel = $record ?? null;
+            $value = old($name, $recordModel?->getAttribute($name) ?? '');
+            $width = $type === 'textarea' ? 'col-12' : ($name === 'name' ? 'col-md-8' : 'col-md-4');
+        @endphp
+        <div class="{{ $width }}">
+            <label for="{{ $name }}" @class(['form-label', 'required' => $required])>{{ $field['label'] }}</label>
+            @if($type === 'textarea')
+                <textarea id="{{ $name }}" name="{{ $name }}" class="form-control @error($name) is-invalid @enderror" rows="4" @required($required)>{{ $value }}</textarea>
+            @else
+                <input id="{{ $name }}" name="{{ $name }}" type="{{ $type }}" class="form-control @error($name) is-invalid @enderror" value="{{ $value instanceof \Carbon\CarbonInterface ? $value->format('Y-m-d') : $value }}" @isset($field['max']) maxlength="{{ $field['max'] }}" @endisset @required($required)>
+            @endif
+            @error($name)<div class="invalid-feedback">{{ $message }}</div>@enderror
+        </div>
+    @endforeach
     <div class="col-12">
         <div class="form-check form-switch">
             <input type="hidden" name="is_active" value="0">

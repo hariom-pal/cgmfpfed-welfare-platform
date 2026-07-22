@@ -24,17 +24,15 @@ final class MenuBuilder
 
         $items = [
             $this->routeItem('Dashboard', 'dashboard', 'fa-solid fa-gauge-high'),
-            $this->externalItem('Insurance Dashboard', 'https://beema.local.in/dashboard', 'fa-solid fa-shield-heart'),
         ];
 
-        if ($this->roles->isVle($user)) {
-            $items[] = $this->routeItem('Add Application', 'applications.create', 'fa-solid fa-file-circle-plus', ['applications.create*']);
-            $items[] = $this->disabledItem('Incomplete Application', 'fa-regular fa-file-lines');
+        if ($this->permissions->can($user, 'masters.manage')) {
+            $items[] = $this->routeOrDisabledItem('Masters', 'masters.index', 'fa-solid fa-table-list', ['masterKey' => 'schemes']);
         }
 
         if ($this->permissions->can($user, 'applications.view')) {
             $items[] = [
-                'label' => 'Application',
+                'label' => 'Scholarship',
                 'icon' => 'fa-regular fa-file-lines',
                 'active' => ['applications.*'],
                 'children' => array_values(array_filter([
@@ -49,12 +47,28 @@ final class MenuBuilder
             ];
         }
 
-        if ($this->permissions->has($user, 38)) {
-            $items[] = $this->routeOrDisabledItem('Batches', 'workflow.index', 'fa-solid fa-layer-group');
+        $items[] = [
+            'label' => 'Beema',
+            'icon' => 'fa-solid fa-shield-heart',
+            'children' => [
+                $this->externalItem('Insurance Dashboard', 'https://beema.local.in/dashboard', 'fa-regular fa-circle'),
+            ],
+        ];
+
+        if ($this->permissions->can($user, 'reports.view')) {
+            $items[] = $this->routeOrDisabledItem('Reports', 'reports.index', 'fa-solid fa-chart-column');
         }
 
         if ($this->roles->isSuperAdmin($user)) {
-            $items[] = [
+            $items[] = $this->disabledItem('User Management', 'fa-solid fa-users-gear');
+        }
+
+        $otherModules = [];
+        if ($this->permissions->has($user, 38)) {
+            $otherModules[] = $this->routeItem('Workflow Batches', 'workflow.index', 'fa-regular fa-circle');
+        }
+        if ($this->roles->isSuperAdmin($user)) {
+            $otherModules[] = [
                 'label' => 'Payment',
                 'icon' => 'fa-solid fa-building-columns',
                 'active' => ['payment.*'],
@@ -65,19 +79,16 @@ final class MenuBuilder
                     $this->disabledItem('Upload UTR', 'fa-regular fa-circle'),
                 ],
             ];
-            $items[] = $this->routeOrDisabledItem('Samiti Wise Count', 'reports.index', 'fa-solid fa-chart-column');
         }
-
-        if ($this->permissions->can($user, 'masters.manage')) {
-            $items[] = $this->routeOrDisabledItem('Master Management', 'masters.index', 'fa-solid fa-table-list', ['masterKey' => 'schemes']);
-        }
-
-        if ($this->permissions->can($user, 'reports.view') && ! $this->roles->isSuperAdmin($user)) {
-            $items[] = $this->routeOrDisabledItem('Reports', 'reports.index', 'fa-solid fa-chart-column');
-        }
-
         if ($this->permissions->can($user, 'settings.manage')) {
-            $items[] = $this->routeOrDisabledItem('Settings', 'settings.index', 'fa-solid fa-gear');
+            $otherModules[] = $this->routeItem('Settings', 'settings.index', 'fa-regular fa-circle');
+        }
+        if ($otherModules !== []) {
+            $items[] = [
+                'label' => 'Other Modules',
+                'icon' => 'fa-solid fa-layer-group',
+                'children' => $otherModules,
+            ];
         }
 
         return $items;

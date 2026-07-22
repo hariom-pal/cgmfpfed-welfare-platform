@@ -8,28 +8,44 @@ use App\Contracts\Repositories\MasterRepositoryInterface;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
 class MasterRepository extends BaseRepository implements MasterRepositoryInterface
 {
-    public function __construct(protected Model $model) {}
+    /**
+     * @param  array<string, mixed>  $master
+     */
+    public function __construct(protected Model $model, private readonly array $master = []) {}
 
     /**
      * @return LengthAwarePaginator<int, Model>
      */
     public function paginate(array $filters = [], string $sort = 'name', string $direction = 'asc', int $perPage = 15): LengthAwarePaginator
     {
-        $allowedSorts = ['code', 'name', 'is_active', 'created_at'];
+        $table = $this->model->getTable();
+        $allowedSorts = array_values(array_filter(
+            $this->master['sort_columns'] ?? ['code', 'name', 'is_active', 'created_at'],
+            fn (string $column): bool => Schema::hasColumn($table, $column),
+        ));
         $sort = in_array($sort, $allowedSorts, true) ? $sort : 'name';
+        if (! Schema::hasColumn($table, $sort)) {
+            $sort = $allowedSorts[0] ?? $this->model->getKeyName();
+        }
         $direction = $direction === 'desc' ? 'desc' : 'asc';
+        $searchColumns = array_values(array_filter(
+            $this->master['search_columns'] ?? ['code', 'name', 'description'],
+            fn (string $column): bool => Schema::hasColumn($table, $column),
+        ));
 
         return $this->model
             ->newQuery()
-            ->when($filters['search'] ?? null, function ($query, string $search): void {
-                $query->where(function ($query) use ($search): void {
-                    $query->where('code', 'like', "%{$search}%")
-                        ->orWhere('name', 'like', "%{$search}%")
-                        ->orWhere('description', 'like', "%{$search}%");
+            ->when(($filters['search'] ?? null) && $searchColumns !== [], function ($query) use ($filters, $searchColumns): void {
+                $query->where(function ($query) use ($filters, $searchColumns): void {
+                    foreach ($searchColumns as $index => $column) {
+                        $method = $index === 0 ? 'where' : 'orWhere';
+                        $query->{$method}($column, 'like', '%'.$filters['search'].'%');
+                    }
                 });
             })
             ->when(array_key_exists('is_active', $filters) && $filters['is_active'] !== null, function ($query) use ($filters): void {
@@ -74,5 +90,10 @@ class MasterRepository extends BaseRepository implements MasterRepositoryInterfa
     public function active(): Collection
     {
         return $this->model->newQuery()->where('is_active', true)->orderBy('name')->get();
+    }
+
+    public function table(): string
+    {
+        return $this->model->getTable();
     }
 }

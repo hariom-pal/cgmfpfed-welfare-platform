@@ -370,21 +370,14 @@ final class ScholarshipViewModelService
             return null;
         }
 
-        if (DB::connection()->getDriverName() === 'mysql') {
-            $row = DB::table('source_data_archives')
-                ->where('source_table', $table)
-                ->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(payload, '$.\"$keyColumn\"')) = ?", [(string) $keyValue])
-                ->first();
-        } else {
-            $row = DB::table('source_data_archives')
-                ->where('source_table', $table)
-                ->get()
-                ->first(function (object $archive) use ($keyColumn, $keyValue): bool {
-                    $payload = (array) json_decode((string) $archive->payload, true);
+        $row = DB::table('source_data_archives')
+            ->where('source_table', $table)
+            ->get()
+            ->first(function (object $archive) use ($keyColumn, $keyValue): bool {
+                $payload = (array) json_decode((string) $archive->payload, true);
 
-                    return (string) ($payload[$keyColumn] ?? '') === (string) $keyValue;
-                });
-        }
+                return (string) ($payload[$keyColumn] ?? '') === (string) $keyValue;
+            });
 
         if (! $row) {
             return null;
@@ -405,25 +398,16 @@ final class ScholarshipViewModelService
             return [];
         }
 
-        $query = DB::table('source_data_archives')
-            ->where('source_table', 'application_verify');
+        $row = DB::table('source_data_archives')
+            ->where('source_table', 'application_verify')
+            ->get()
+            ->filter(function (object $archive) use ($application): bool {
+                $payload = (array) json_decode((string) $archive->payload, true);
 
-        if (DB::connection()->getDriverName() === 'mysql') {
-            $row = $query
-                ->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(payload, '$.\"application_id\"')) = ?", [(string) $application->application_number])
-                ->orderByDesc(DB::raw('CAST(source_primary_key AS UNSIGNED)'))
-                ->first();
-        } else {
-            $row = $query
-                ->get()
-                ->filter(function (object $archive) use ($application): bool {
-                    $payload = (array) json_decode((string) $archive->payload, true);
-
-                    return (string) ($payload['application_id'] ?? '') === (string) $application->application_number;
-                })
-                ->sortByDesc(fn (object $archive): int => (int) $archive->source_primary_key)
-                ->first();
-        }
+                return (string) ($payload['application_id'] ?? '') === (string) $application->application_number;
+            })
+            ->sortByDesc(fn (object $archive): int => (int) $archive->source_primary_key)
+            ->first();
 
         return $row ? (array) json_decode((string) $row->payload, true) : [];
     }
