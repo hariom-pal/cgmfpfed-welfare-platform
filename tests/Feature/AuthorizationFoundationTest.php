@@ -19,13 +19,13 @@ final class AuthorizationFoundationTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_samiti_role_can_reach_application_listing_without_role_priviledge_rows(): void
+    public function test_samiti_role_must_select_scheme_before_application_listing(): void
     {
         $this->actingAs($this->legacyUser(3, ['districtunion' => 7, 'samiti' => 77]));
 
         Scheme::factory()->create(['is_active' => true]);
 
-        $this->get(route('applications.index'))->assertOk()->assertSee('Scholarship Applications');
+        $this->get(route('applications.index'))->assertOk()->assertSee('Select a Scheme to view applications');
     }
 
     public function test_vle_menu_and_visitor_middleware_match_application_only_access(): void
@@ -57,6 +57,17 @@ final class AuthorizationFoundationTest extends TestCase
         $this->assertContains('Payment', $labels);
         $this->assertContains('Samiti Wise Count', $labels);
         $this->assertContains('Master Management', $labels);
+    }
+
+    public function test_master_management_is_super_admin_only_even_when_other_roles_have_permission(): void
+    {
+        $districtUnion = $this->legacyUser(2);
+        $this->grant($districtUnion, [35]);
+
+        $this->assertFalse(app(PermissionService::class)->can($districtUnion, 'masters.manage'));
+
+        $this->actingAs($districtUnion);
+        $this->get(route('masters.index', 'schemes'))->assertForbidden();
     }
 
     public function test_permission_service_uses_matrix_vle_rules_without_duplicate_db_rows(): void

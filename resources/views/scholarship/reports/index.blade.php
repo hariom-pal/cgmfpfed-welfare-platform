@@ -7,6 +7,13 @@
 @php($breadcrumbs = ['Reports' => null])
 
 @section('content')
+    @if($currentScheme ?? null)
+        <div class="alert alert-info d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+            <div><span class="text-muted">Current Scheme:</span> <strong>{{ $currentScheme->name }}</strong></div>
+            <a href="{{ route('applications.index') }}" class="btn btn-sm btn-outline-primary">Change Scheme</a>
+        </div>
+    @endif
+
     <div class="row g-3 mb-3">
         @foreach([['Applications', $totals['applications']], ['Submitted', $totals['submitted']], ['Sanctioned', '₹'.number_format((float) $totals['amount'], 2)], ['Paid', '₹'.number_format((float) $totals['paid'], 2)]] as [$label, $value])
             <div class="col-md-3"><x-card><div class="text-muted small">{{ $label }}</div><div class="fs-4 fw-semibold">{{ $value }}</div></x-card></div>

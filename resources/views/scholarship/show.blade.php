@@ -5,6 +5,14 @@
 @section('subtitle', $application->status_label)
 
 @section('content')
+    <div class="alert alert-info d-flex flex-wrap align-items-center justify-content-between gap-2">
+        <div><span class="fw-semibold">Current Scheme:</span> {{ $application->scheme?->name }}</div>
+        <div class="d-flex gap-2">
+            <a class="btn btn-sm btn-outline-primary" href="{{ route('applications.index', ['scheme' => $application->scheme_id]) }}">Application Listing</a>
+            <a class="btn btn-sm btn-outline-secondary" href="{{ route('applications.index') }}">Change Scheme</a>
+        </div>
+    </div>
+
     <div class="row g-3">
         <div class="col-lg-8">
             @foreach($sections as $section)

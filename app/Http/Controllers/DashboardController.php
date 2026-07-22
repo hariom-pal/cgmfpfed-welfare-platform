@@ -4,18 +4,22 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Domains\Scholarship\Enums\ScholarshipApplicationStatus;
 use App\Models\AcademicSession;
+use App\Models\Scheme;
 use App\Models\ScholarshipApplication;
 use App\Services\CurrentUserService;
 use App\Services\DataScopeService;
 use App\Services\PermissionService;
 use App\Support\MasterRegistry;
+use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\View\View;
 
 final class DashboardController extends Controller
 {
     public function __invoke(
+        Request $request,
         MasterRegistry $registry,
         CurrentUserService $currentUser,
         PermissionService $permissions,
@@ -35,6 +39,13 @@ final class DashboardController extends Controller
         $visibleApplications = $user
             ? $scope->applyScholarshipVisibility(ScholarshipApplication::query(), $user)
             : ScholarshipApplication::query()->whereRaw('1 = 0');
+        $currentSchemeId = (int) ($request->query('scheme') ?: $request->session()->get('current_scheme_id'));
+        $currentScheme = $currentSchemeId > 0 ? Scheme::query()->find($currentSchemeId) : null;
+
+        if ($currentScheme) {
+            $request->session()->put('current_scheme_id', $currentScheme->id);
+            $visibleApplications->where('scheme_id', $currentScheme->id);
+        }
 
         /** @var Collection<int, array{label: string, value: int|string, icon: string, color: string, route: string|null}> $cards */
         $cards = collect(array_values(array_filter([
@@ -88,14 +99,15 @@ final class DashboardController extends Controller
                 'route' => 'samitis',
             ] : null,
             $user && $permissions->can($user, 'applications.view') ? ['label' => 'Applications', 'value' => (clone $visibleApplications)->count(), 'icon' => 'fa-file-lines', 'color' => 'secondary', 'route' => null] : null,
-            $user && $permissions->can($user, 'applications.view') ? ['label' => 'Pending Applications', 'value' => (clone $visibleApplications)->whereIn('status', [0, 1])->count(), 'icon' => 'fa-clock', 'color' => 'warning', 'route' => null] : null,
-            $user && $permissions->can($user, 'applications.view') ? ['label' => 'Approved Applications', 'value' => (clone $visibleApplications)->whereIn('status', [11, 12, 15, 16, 19, 20, 28])->count(), 'icon' => 'fa-circle-check', 'color' => 'success', 'route' => null] : null,
-            $user && $permissions->can($user, 'applications.view') ? ['label' => 'Rejected Applications', 'value' => (clone $visibleApplications)->whereIn('status', [2, 3, 7, 9, 10, 13, 14, 21, 22, 23, 24, 25, 26])->count(), 'icon' => 'fa-circle-xmark', 'color' => 'danger', 'route' => null] : null,
+            $user && $permissions->can($user, 'applications.view') ? ['label' => 'Pending Applications', 'value' => (clone $visibleApplications)->whereIn('status', ScholarshipApplicationStatus::pendingAtVleValues())->count(), 'icon' => 'fa-clock', 'color' => 'warning', 'route' => null] : null,
+            $user && $permissions->can($user, 'applications.view') ? ['label' => 'Approved Applications', 'value' => (clone $visibleApplications)->whereIn('status', ScholarshipApplicationStatus::completedValues())->count(), 'icon' => 'fa-circle-check', 'color' => 'success', 'route' => null] : null,
+            $user && $permissions->can($user, 'applications.view') ? ['label' => 'Rejected Applications', 'value' => (clone $visibleApplications)->whereIn('status', ScholarshipApplicationStatus::rejectedValues())->count(), 'icon' => 'fa-circle-xmark', 'color' => 'danger', 'route' => null] : null,
         ])));
 
         return view('dashboard', [
             'cards' => $cards,
             'masterCards' => $user && $permissions->can($user, 'masters.manage') ? $masterCards : collect(),
+            'currentScheme' => $currentScheme,
             'activities' => [
                 'Signed in as '.$currentUser->roleName().'.',
                 'Menus are generated from the centralized role and permission services.',

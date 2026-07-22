@@ -12,9 +12,14 @@
 @section('heading', $isEdit ? 'Edit Scholarship Application' : 'New Scholarship Application')
 @section('subtitle', 'VLE scholarship application entry')
 
-@php($breadcrumbs = ['Applications' => route('applications.index'), $isEdit ? 'Edit' : 'Create' => null])
+@php($breadcrumbs = ['Applications' => route('applications.index', ['scheme' => $selectedSchemeId ?: $application?->scheme_id]), $isEdit ? 'Edit' : 'Create' => null])
 
 @section('content')
+    <div class="alert alert-info d-flex flex-wrap align-items-center justify-content-between gap-2">
+        <div><span class="fw-semibold">Current Scheme:</span> {{ $selectedSchemeModel?->name ?? $application?->scheme?->name ?? 'Not selected' }}</div>
+        <a class="btn btn-sm btn-outline-secondary" href="{{ route('applications.index') }}">Change Scheme</a>
+    </div>
+
     <form method="POST" action="{{ $isEdit ? route('applications.update', $application) : route('applications.store') }}" enctype="multipart/form-data" id="scholarship-form">
         @csrf
         @if($isEdit) @method('PUT') @endif
@@ -249,7 +254,7 @@
         </x-card>
 
         <div class="d-flex justify-content-end gap-2">
-            <a class="btn btn-outline-secondary" href="{{ route('applications.index') }}">Cancel</a>
+            <a class="btn btn-outline-secondary" href="{{ route('applications.index', ['scheme' => $selectedSchemeId ?: $application?->scheme_id]) }}">Cancel</a>
             @if(! $application || $application->is_draft)
                 <button class="btn btn-outline-primary" name="intent" value="draft" type="submit"><i class="fa-regular fa-floppy-disk me-1"></i>Save Draft</button>
                 <button class="btn btn-primary" name="intent" value="submit" type="submit"><i class="fa-solid fa-paper-plane me-1"></i>Preview / Submit</button>

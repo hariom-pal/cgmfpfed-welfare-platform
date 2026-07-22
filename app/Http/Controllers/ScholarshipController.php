@@ -10,6 +10,7 @@ use App\Models\AcademicSession;
 use App\Models\Scheme;
 use App\Models\ScholarshipApplication;
 use App\Models\ScholarshipWalletTransaction;
+use App\Services\ApplicationCategoryService;
 use App\Services\RoleService;
 use App\Services\ScholarshipViewModelService;
 use Illuminate\Http\RedirectResponse;
@@ -27,6 +28,7 @@ class ScholarshipController extends Controller
         private readonly ScholarshipServiceInterface $service,
         private readonly ScholarshipViewModelService $viewModels,
         private readonly RoleService $roles,
+        private readonly ApplicationCategoryService $categories,
     ) {}
 
     public function index(Request $request): View
@@ -36,8 +38,14 @@ class ScholarshipController extends Controller
         $filters = $this->applicationFilters($request);
 
         if (! isset($filters['scheme_id'])) {
-            return view('scholarship.select_scheme', $this->viewModels->schemeSelection('list'));
+            $selectionQuery = array_filter([
+                'category' => $filters['category'] ?? null,
+            ], fn (mixed $value): bool => filled($value));
+
+            return view('scholarship.select_scheme', $this->viewModels->schemeSelection('list', $selectionQuery));
         }
+
+        $request->session()->put('current_scheme_id', $filters['scheme_id']);
 
         return view('scholarship.index', [
             'applications' => $this->applications->paginateFor($request->user(), $filters, 20),
@@ -45,6 +53,8 @@ class ScholarshipController extends Controller
             'sessions' => AcademicSession::query()->orderByDesc('start_date')->get(),
             'filters' => $filters,
             'selectedScheme' => Scheme::query()->find($filters['scheme_id']),
+            'categories' => $this->categories->labels(),
+            'selectedCategory' => $this->categories->normalize($filters['category'] ?? null),
             'breadcrumbs' => ['Operations' => null, 'Applications' => null],
         ]);
     }
@@ -60,6 +70,7 @@ class ScholarshipController extends Controller
     {
         Gate::authorize('create', ScholarshipApplication::class);
         abort_unless($scheme->is_active, 404);
+        request()->session()->put('current_scheme_id', $scheme->id);
 
         return view('scholarship.form', $this->formData(null, $scheme));
     }
@@ -87,6 +98,7 @@ class ScholarshipController extends Controller
     {
         $application = $this->applications->findVisible($application->id, $request->user());
         Gate::authorize('view', $application);
+        $request->session()->put('current_scheme_id', $application->scheme_id);
 
         $application->load([
             'academicSession',
@@ -114,6 +126,7 @@ class ScholarshipController extends Controller
     {
         $application = $this->applications->findVisible($application->id, $request->user());
         Gate::authorize('update', $application);
+        $request->session()->put('current_scheme_id', $application->scheme_id);
 
         return view('scholarship.form', $this->formData($application));
     }
@@ -346,11 +359,17 @@ class ScholarshipController extends Controller
             $filters['scheme_id'] = $request->query('scheme');
         }
 
+        if (! isset($filters['category']) && $request->filled('status_bucket')) {
+            $filters['category'] = $request->query('status_bucket');
+        }
+
         if (isset($filters['scheme_id']) && filled($filters['scheme_id'])) {
             $filters['scheme_id'] = (int) $filters['scheme_id'];
         } else {
             unset($filters['scheme_id']);
         }
+
+        $filters['category'] = $this->categories->normalize($filters['category'] ?? null);
 
         return $filters;
     }

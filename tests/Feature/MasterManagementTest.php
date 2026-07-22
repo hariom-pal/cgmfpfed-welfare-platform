@@ -37,7 +37,7 @@ final class MasterManagementTest extends TestCase
         $this->actingAsMasterManager();
 
         $this->get(route('dashboard'))->assertOk()->assertSee('Operational overview');
-        $this->get(route('applications.index'))->assertOk()->assertSee('Scholarship Applications');
+        $this->get(route('applications.index'))->assertOk()->assertSee('Select a Scheme to view applications');
         $this->get(route('workflow.index'))->assertOk()->assertSee('Scholarship Workflow');
 
         foreach (array_keys(config('masters')) as $masterKey) {

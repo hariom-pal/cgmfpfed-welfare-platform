@@ -46,7 +46,7 @@ final class LegacyMasterDataSeeder extends Seeder
             'uuid' => (string) Str::uuid(),
             'code' => 'SCH-'.$row->id,
             'name' => $row->name,
-            'description' => 'Legacy application type: '.$row->application_type,
+            'description' => null,
             'is_active' => $row->status === '1',
             'created_by' => null,
             'updated_by' => null,

@@ -8,13 +8,17 @@ use App\Domains\Scholarship\Contracts\ScholarshipRepositoryInterface;
 use App\Models\ScholarshipApplication;
 use App\Models\User;
 use App\Repositories\BaseRepository;
+use App\Services\ApplicationCategoryService;
 use App\Services\DataScopeService;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 
 final class ScholarshipRepository extends BaseRepository implements ScholarshipRepositoryInterface
 {
-    public function __construct(private readonly DataScopeService $scope) {}
+    public function __construct(
+        private readonly DataScopeService $scope,
+        private readonly ApplicationCategoryService $categories,
+    ) {}
 
     public function queryVisibleFor(User $user): Builder
     {
@@ -55,6 +59,8 @@ final class ScholarshipRepository extends BaseRepository implements ScholarshipR
                         ->orWhere('student_aadhaar', 'like', "%{$search}%");
                 });
             });
+
+        $this->categories->apply($query, $filters['category'] ?? null);
 
         return $query->paginate($perPage)->withQueryString();
     }

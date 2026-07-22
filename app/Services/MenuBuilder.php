@@ -40,11 +40,11 @@ final class MenuBuilder
                 'children' => array_values(array_filter([
                     $this->routeItem('All Applications', 'applications.index', 'fa-regular fa-circle'),
                     $this->roles->isVle($user) ? $this->routeItem('Add Application', 'applications.create', 'fa-regular fa-circle') : null,
-                    $this->routeItem('Pending Applications', 'applications.index', 'fa-regular fa-circle', [], ['status_bucket' => 'pending']),
-                    $this->routeItem('Processing Applications', 'applications.index', 'fa-regular fa-circle', [], ['status_bucket' => 'underprocess']),
-                    $this->routeItem('Completed Applications', 'applications.index', 'fa-regular fa-circle', [], ['status_bucket' => 'completed']),
-                    $this->routeItem('Rejected Applications', 'applications.index', 'fa-regular fa-circle', [], ['status_bucket' => 'rejected']),
-                    $this->routeItem('Failed Applications', 'applications.index', 'fa-regular fa-circle', [], ['status_bucket' => 'failed']),
+                    $this->routeItem('Pending at VLE', 'applications.index', 'fa-regular fa-circle', [], ['category' => 'pending-at-vle']),
+                    $this->routeItem('Under Process', 'applications.index', 'fa-regular fa-circle', [], ['category' => 'under-process']),
+                    $this->routeItem('Completed', 'applications.index', 'fa-regular fa-circle', [], ['category' => 'completed']),
+                    $this->routeItem('Failed', 'applications.index', 'fa-regular fa-circle', [], ['category' => 'failed']),
+                    $this->routeItem('Rejected', 'applications.index', 'fa-regular fa-circle', [], ['category' => 'rejected']),
                 ])),
             ];
         }

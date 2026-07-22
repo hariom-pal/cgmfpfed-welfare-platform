@@ -9,6 +9,13 @@
 @endphp
 
 @section('content')
+    @if($currentScheme ?? null)
+        <div class="alert alert-info d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+            <div><span class="text-muted">Current Scheme:</span> <strong>{{ $currentScheme->name }}</strong></div>
+            <a href="{{ route('applications.index') }}" class="btn btn-sm btn-outline-primary">Change Scheme</a>
+        </div>
+    @endif
+
     <div class="row g-3 mb-4">
         @foreach($cards as $card)
             <div class="col-sm-6 col-xl-3">

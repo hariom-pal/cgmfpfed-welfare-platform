@@ -14,7 +14,7 @@ final class ScholarshipViewModelService
     /**
      * @return array<string, mixed>
      */
-    public function schemeSelection(string $mode): array
+    public function schemeSelection(string $mode, array $query = []): array
     {
         $isCreate = $mode === 'create';
 
@@ -36,7 +36,7 @@ final class ScholarshipViewModelService
                     'name' => $scheme->name,
                     'url' => $isCreate
                         ? route('applications.create.scheme', $scheme)
-                        : route('applications.index', ['scheme' => $scheme->id]),
+                        : route('applications.index', array_merge($query, ['scheme' => $scheme->id])),
                 ]),
         ];
     }

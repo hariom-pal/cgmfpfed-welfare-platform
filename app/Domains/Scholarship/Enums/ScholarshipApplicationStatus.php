@@ -21,11 +21,8 @@ enum ScholarshipApplicationStatus: int
     case AppealedByBeneficiary = 6;
 
     /**
-     * Legacy CCF Workflow
-     *
-     * These statuses are retained only for compatibility with
-     * migrated applications. New applications must never enter
-     * these states.
+     * Source-system CCF workflow states retained for migrated applications.
+     * New applications must never enter these states.
      */
     case RejectedByCCF = 7;
     case RecommendedByCCF = 8;
@@ -113,7 +110,7 @@ enum ScholarshipApplicationStatus: int
             self::RecommendedForPayment, self::PermanentlyRejectedByAccounts, self::AccountDetailsUpdatedByHQ, self::FinalApplicationForPayment, self::PaymentBatchSubmitted, self::PaymentFailed => 'finance',
             self::PaymentCompleted => 'completed',
             self::PermanentlyRejectedBySamiti, self::PermanentlyRejectedByIC, self::PermanentlyRejectedByDistrictUnion, self::PermanentlyRejectedByHQ => 'closed',
-            default => 'legacy',
+            default => 'source_system',
         };
     }
 
@@ -126,5 +123,110 @@ enum ScholarshipApplicationStatus: int
             self::PermanentlyRejectedByDistrictUnion,
             self::PermanentlyRejectedByHQ,
         ], true);
+    }
+
+    public function isEditableByVleAfterReturn(): bool
+    {
+        return in_array($this, [
+            self::RejectedBySamiti,
+            self::RejectedByIC,
+            self::RejectedByCCF,
+            self::RejectedByDistrictUnion,
+            self::RejectedByDistrictUnionViaCCF,
+            self::RejectedByHQ,
+            self::RejectedByHQViaCCF,
+            self::PermanentlyRejectedByAccounts,
+        ], true);
+    }
+
+    /**
+     * @return list<int>
+     */
+    public static function pendingAtVleValues(): array
+    {
+        return [
+            self::Pending->value,
+            self::Resubmitted->value,
+        ];
+    }
+
+    /**
+     * @return list<int>
+     */
+    public static function underProcessValues(): array
+    {
+        return collect(self::cases())
+            ->reject(fn (self $status): bool => in_array($status, [
+                self::Pending,
+                self::Resubmitted,
+                ...self::completedCases(),
+                ...self::failedCases(),
+                ...self::rejectedCases(),
+            ], true))
+            ->map(fn (self $status): int => $status->value)
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @return list<int>
+     */
+    public static function completedValues(): array
+    {
+        return array_map(fn (self $status): int => $status->value, self::completedCases());
+    }
+
+    /**
+     * @return list<int>
+     */
+    public static function failedValues(): array
+    {
+        return array_map(fn (self $status): int => $status->value, self::failedCases());
+    }
+
+    /**
+     * @return list<int>
+     */
+    public static function rejectedValues(): array
+    {
+        return array_map(fn (self $status): int => $status->value, self::rejectedCases());
+    }
+
+    /**
+     * @return list<self>
+     */
+    private static function completedCases(): array
+    {
+        return [self::PaymentCompleted, self::PaymentCompletedViaCCF];
+    }
+
+    /**
+     * @return list<self>
+     */
+    private static function failedCases(): array
+    {
+        return [self::PaymentFailed, self::PaymentFailedViaCCF];
+    }
+
+    /**
+     * @return list<self>
+     */
+    private static function rejectedCases(): array
+    {
+        return [
+            self::RejectedBySamiti,
+            self::RejectedByIC,
+            self::RejectedByCCF,
+            self::RejectedByDistrictUnion,
+            self::RejectedByDistrictUnionViaCCF,
+            self::RejectedByHQ,
+            self::RejectedByHQViaCCF,
+            self::PermanentlyRejectedBySamiti,
+            self::PermanentlyRejectedByIC,
+            self::PermanentlyRejectedByCCF,
+            self::PermanentlyRejectedByDistrictUnion,
+            self::PermanentlyRejectedByHQ,
+            self::PermanentlyRejectedByAccounts,
+        ];
     }
 }

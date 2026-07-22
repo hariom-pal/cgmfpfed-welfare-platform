@@ -113,7 +113,7 @@ final class ScholarshipModuleTest extends TestCase
     {
         $this->userWithPermissions();
 
-        $this->get(route('applications.index'))->assertOk()->assertSee('Scholarship Applications');
+        $this->get(route('applications.index'))->assertOk()->assertSee('Select a Scheme to view applications');
         $this->get(route('workflow.index'))->assertOk()->assertSee('Scholarship Workflow');
         $this->get(route('reports.index'))->assertOk()->assertSee('Scholarship Reports');
     }

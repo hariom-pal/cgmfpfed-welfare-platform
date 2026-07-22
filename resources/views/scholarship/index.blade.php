@@ -5,18 +5,23 @@
 @section('subtitle', 'Scheme-wise application list')
 
 @section('content')
+    <div class="alert alert-info d-flex flex-wrap align-items-center justify-content-between gap-2">
+        <div><span class="fw-semibold">Current Scheme:</span> {{ $selectedScheme?->name }}</div>
+        <a class="btn btn-sm btn-outline-primary" href="{{ route('applications.index') }}">Change Scheme</a>
+    </div>
+
     <x-card title="Applications" icon="fa-regular fa-file-lines">
         <x-slot:tools>
-            <a class="btn btn-outline-secondary" href="{{ route('applications.index') }}">
-                <i class="fa-solid fa-list me-1"></i>Change Scheme
-            </a>
-            <a class="btn btn-primary" href="{{ route('applications.create') }}">
-                <i class="fa-solid fa-plus me-1"></i>New Application
-            </a>
+            @can('create', \App\Models\ScholarshipApplication::class)
+                <a class="btn btn-primary" href="{{ route('applications.create.scheme', $selectedScheme) }}">
+                    <i class="fa-solid fa-plus me-1"></i>New Application
+                </a>
+            @endcan
         </x-slot:tools>
 
         <form method="GET" class="row g-2 align-items-end mb-3">
             <input type="hidden" name="scheme" value="{{ $filters['scheme_id'] }}">
+            <input type="hidden" name="category" value="{{ $selectedCategory }}">
             <div class="col-md-4">
                 <label class="form-label" for="q">Search</label>
                 <input class="form-control" id="q" name="q" value="{{ $filters['q'] ?? '' }}" placeholder="Application, name, or Aadhaar">
@@ -35,6 +40,14 @@
                 <a class="btn btn-outline-secondary" href="{{ route('applications.index', ['scheme' => $filters['scheme_id']]) }}">Reset</a>
             </div>
         </form>
+
+        <ul class="nav nav-tabs mb-3">
+            @foreach($categories as $key => $label)
+                <li class="nav-item">
+                    <a @class(['nav-link', 'active' => $selectedCategory === $key]) href="{{ route('applications.index', ['scheme' => $filters['scheme_id'], 'category' => $key]) }}">{{ $label }}</a>
+                </li>
+            @endforeach
+        </ul>
 
         <div class="table-responsive">
             <table class="table table-hover align-middle mb-0">
@@ -63,8 +76,10 @@
                         <td><span class="badge text-bg-{{ $application->is_draft ? 'secondary' : 'primary' }}">{{ $application->status_label }}</span></td>
                         <td class="text-end">₹{{ number_format((float) $application->amount, 2) }}</td>
                         <td class="text-end">
-                            <a class="btn btn-sm btn-outline-primary" href="{{ route('applications.show', $application) }}"><i class="fa-regular fa-eye"></i></a>
-                            <a class="btn btn-sm btn-outline-secondary" href="{{ route('applications.edit', $application) }}"><i class="fa-regular fa-pen-to-square"></i></a>
+                            <a class="btn btn-sm btn-outline-primary" href="{{ route('applications.show', ['application' => $application, 'scheme' => $filters['scheme_id'], 'category' => $selectedCategory]) }}"><i class="fa-regular fa-eye"></i></a>
+                            @can('update', $application)
+                                <a class="btn btn-sm btn-outline-secondary" href="{{ route('applications.edit', ['application' => $application, 'scheme' => $filters['scheme_id'], 'category' => $selectedCategory]) }}"><i class="fa-regular fa-pen-to-square"></i></a>
+                            @endcan
                         </td>
                     </tr>
                 @empty
