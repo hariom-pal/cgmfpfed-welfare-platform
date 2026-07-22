@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Services;
 
-use App\Models\ScholarshipApplication;
 use App\Models\Scheme;
+use App\Models\ScholarshipApplication;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
@@ -312,11 +312,16 @@ final class ScholarshipViewModelService
             'samiti' => $application->samiti?->name
                 ?? $this->archiveValue('samiti', 'id', $application->samiti_id, 'samiti_name'),
             'phad' => $this->phadName($application, $phadCode),
-            'block' => $this->archiveValue('blocks', 'block_code', $application->block_code, 'block_name'),
-            'gram_panchayat' => $this->archiveValue('gram_panchayat', 'gp_code', $application->gram_panchayat_code, 'gp_name'),
-            'village' => $this->archiveValue('villages', 'village_code', $application->village_code, 'village_name'),
-            'city' => $this->archiveValue('cities', 'city_code', $application->city_code, 'city_name'),
-            'ward' => $this->archiveValue('wards', 'ward_code', $application->ward_code, 'ward_name'),
+            'block' => $application->block?->name
+                ?? $this->archiveValue('blocks', 'block_code', $application->block_code, 'block_name'),
+            'gram_panchayat' => $application->gramPanchayat?->name
+                ?? $this->archiveValue('gram_panchayat', 'gp_code', $application->gram_panchayat_code, 'gp_name'),
+            'village' => $application->village?->name
+                ?? $this->archiveValue('villages', 'village_code', $application->village_code, 'village_name'),
+            'city' => $application->city?->name
+                ?? $this->archiveValue('cities', 'city_code', $application->city_code, 'city_name'),
+            'ward' => $application->ward?->name
+                ?? $this->archiveValue('wards', 'ward_code', $application->ward_code, 'ward_name'),
             'ward_number' => $wardNumber,
         ];
     }

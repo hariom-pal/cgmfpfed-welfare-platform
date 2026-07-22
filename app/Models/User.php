@@ -33,8 +33,11 @@ class User extends Authenticatable
         'user_type',
         'district',
         'circle',
+        'circle_master_id',
         'districtunion',
+        'district_union_master_id',
         'samiti',
+        'samiti_master_id',
         'reset_code',
         'fail_attempt',
     ];
@@ -42,6 +45,21 @@ class User extends Authenticatable
     public function role(): BelongsTo
     {
         return $this->belongsTo(UserType::class, 'user_type');
+    }
+
+    public function districtUnionMaster(): BelongsTo
+    {
+        return $this->belongsTo(DistrictUnion::class, 'district_union_master_id');
+    }
+
+    public function samitiMaster(): BelongsTo
+    {
+        return $this->belongsTo(Samiti::class, 'samiti_master_id');
+    }
+
+    public function circleMaster(): BelongsTo
+    {
+        return $this->belongsTo(Circle::class, 'circle_master_id');
     }
 
     public function isActive(): bool
@@ -88,8 +106,11 @@ class User extends Authenticatable
             'user_type' => 'integer',
             'district' => 'integer',
             'circle' => 'integer',
+            'circle_master_id' => 'integer',
             'districtunion' => 'integer',
+            'district_union_master_id' => 'integer',
             'samiti' => 'integer',
+            'samiti_master_id' => 'integer',
             'fail_attempt' => 'integer',
             'csc_payload' => 'array',
         ];

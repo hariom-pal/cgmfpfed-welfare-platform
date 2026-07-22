@@ -154,8 +154,11 @@ final class CompleteLegacyDataMigrationSeeder extends Seeder
                         'user_type' => $this->nullableInt($row->user_type),
                         'district' => $this->nullableInt($row->district),
                         'circle' => $this->nullableInt($row->circle),
+                        'circle_master_id' => $this->idByColumn('circles', 'legacy_id', $row->circle),
                         'districtunion' => $this->nullableInt($row->districtunion),
+                        'district_union_master_id' => $this->idByColumn('district_unions', 'legacy_id', $row->districtunion),
                         'samiti' => $this->nullableInt($row->samiti),
+                        'samiti_master_id' => $this->idByColumn('samitis', 'legacy_id', $row->samiti),
                         'reset_code' => $row->reset_code,
                         'fail_attempt' => (int) ($row->fail_attempt ?? 0),
                         'created_at' => $createdAt,
@@ -176,8 +179,11 @@ final class CompleteLegacyDataMigrationSeeder extends Seeder
                         'user_type',
                         'district',
                         'circle',
+                        'circle_master_id',
                         'districtunion',
+                        'district_union_master_id',
                         'samiti',
+                        'samiti_master_id',
                         'reset_code',
                         'fail_attempt',
                         'updated_at',
@@ -234,6 +240,11 @@ final class CompleteLegacyDataMigrationSeeder extends Seeder
                         'district_union_id' => $this->nullableInt($row->districtunion),
                         'samiti_id' => $this->nullableInt($row->samitiname),
                         'phad_id' => $this->phadIdFromCode($row->phadname),
+                        'block_id' => $this->idByColumn('blocks', 'legacy_code', $row->block),
+                        'gram_panchayat_id' => $this->idByColumn('gram_panchayats', 'legacy_code', $row->grampanchayat),
+                        'village_id' => $this->idByColumn('villages', 'legacy_code', $row->village),
+                        'city_id' => $this->idByColumn('cities', 'legacy_code', $row->city),
+                        'ward_id' => $this->idByColumn('wards', 'legacy_code', $row->ward),
                         'tendupatta_data_source' => 'MANUAL',
                         'student_aadhaar' => $studentAadhaar,
                         'aadhaar_verified_student_name' => $this->text($row->student_name, 'Legacy Student '.$row->id),
@@ -383,7 +394,7 @@ final class CompleteLegacyDataMigrationSeeder extends Seeder
                     'source' => 'MANUAL',
                     'uploaded_by' => isset($row->added_by) ? $this->userIdForCsc((string) $row->added_by) : null,
                     'created_at' => $this->dateValue($row->add_date) ?? now(),
-                    ])->all());
+                ])->all());
             });
 
         DB::table($this->source('application_verify'))
@@ -802,6 +813,17 @@ final class CompleteLegacyDataMigrationSeeder extends Seeder
         $id = DB::table('phads')->where('code', 'like', 'PHD-'.$code.'-%')->value('id');
 
         return $id !== null ? (int) $id : $this->nullableInt($phadCode);
+    }
+
+    private function idByColumn(string $table, string $column, mixed $value): ?int
+    {
+        if ($value === null || $value === '' || ! Schema::hasTable($table) || ! Schema::hasColumn($table, $column)) {
+            return null;
+        }
+
+        $id = DB::table($table)->where($column, $value)->value('id');
+
+        return $id !== null ? (int) $id : null;
     }
 
     private function decimal(mixed $value): ?float

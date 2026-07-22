@@ -66,6 +66,14 @@ final class DataScopeService
 
         $ids = $this->districtUnionIdsFromArchive($circleId);
 
+        if ($ids === [] && Schema::hasTable('district_unions') && Schema::hasColumn('district_unions', 'circle_id')) {
+            $ids = DB::table('district_unions')
+                ->where('circle_id', $circleId)
+                ->pluck('id')
+                ->map(fn (mixed $id): int => (int) $id)
+                ->all();
+        }
+
         if ($ids === [] && Schema::hasTable('district_unions')) {
             $ids = DB::table('district_unions')
                 ->where('description', 'like', '%, circle ID: '.$circleId)

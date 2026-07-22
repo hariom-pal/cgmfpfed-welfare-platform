@@ -19,7 +19,20 @@ final class ScholarshipRepository extends BaseRepository implements ScholarshipR
     public function queryVisibleFor(User $user): Builder
     {
         $query = ScholarshipApplication::query()
-            ->with(['academicSession', 'scheme', 'applicant', 'district', 'districtUnion', 'samiti', 'phad'])
+            ->with([
+                'academicSession',
+                'scheme',
+                'applicant',
+                'district',
+                'districtUnion',
+                'samiti',
+                'phad',
+                'block',
+                'gramPanchayat',
+                'village',
+                'city',
+                'ward',
+            ])
             ->latest();
 
         return $this->scope->applyScholarshipVisibility($query, $user);

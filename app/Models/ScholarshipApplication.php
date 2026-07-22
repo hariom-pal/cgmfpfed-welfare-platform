@@ -34,6 +34,11 @@ class ScholarshipApplication extends Model
         'district_union_id',
         'samiti_id',
         'phad_id',
+        'block_id',
+        'gram_panchayat_id',
+        'village_id',
+        'city_id',
+        'ward_id',
         'tendupatta_data_source',
         'tendupatta_verified_at',
         'tendupatta_verified_by',
@@ -117,6 +122,31 @@ class ScholarshipApplication extends Model
         return $this->belongsTo(Phad::class);
     }
 
+    public function block(): BelongsTo
+    {
+        return $this->belongsTo(Block::class);
+    }
+
+    public function gramPanchayat(): BelongsTo
+    {
+        return $this->belongsTo(GramPanchayat::class);
+    }
+
+    public function village(): BelongsTo
+    {
+        return $this->belongsTo(Village::class);
+    }
+
+    public function city(): BelongsTo
+    {
+        return $this->belongsTo(City::class);
+    }
+
+    public function ward(): BelongsTo
+    {
+        return $this->belongsTo(Ward::class);
+    }
+
     public function applicant(): BelongsTo
     {
         return $this->belongsTo(User::class, 'applicant_user_id');
@@ -164,6 +194,15 @@ class ScholarshipApplication extends Model
             'submitted_at' => 'datetime',
             'wallet_paid_at' => 'datetime',
             'tendupatta_verified_at' => 'datetime',
+            'district_id' => 'integer',
+            'district_union_id' => 'integer',
+            'samiti_id' => 'integer',
+            'phad_id' => 'integer',
+            'block_id' => 'integer',
+            'gram_panchayat_id' => 'integer',
+            'village_id' => 'integer',
+            'city_id' => 'integer',
+            'ward_id' => 'integer',
             'date_of_birth' => 'date',
             'head_of_family_date_of_birth' => 'date',
             'marks_obtained' => 'decimal:2',

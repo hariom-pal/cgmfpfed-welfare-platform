@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Relations\HasMany;
+
 class District extends BaseMasterModel
 {
     /**
@@ -12,6 +14,7 @@ class District extends BaseMasterModel
     protected $fillable = [
         'uuid',
         'code',
+        'legacy_code',
         'name',
         'description',
         'is_active',
@@ -26,4 +29,24 @@ class District extends BaseMasterModel
     protected $casts = [
         'is_active' => 'boolean',
     ];
+
+    public function districtUnions(): HasMany
+    {
+        return $this->hasMany(DistrictUnion::class);
+    }
+
+    public function samitis(): HasMany
+    {
+        return $this->hasMany(Samiti::class);
+    }
+
+    public function phads(): HasMany
+    {
+        return $this->hasMany(Phad::class);
+    }
+
+    public function blocks(): HasMany
+    {
+        return $this->hasMany(Block::class);
+    }
 }
