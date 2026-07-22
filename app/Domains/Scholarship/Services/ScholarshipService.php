@@ -27,6 +27,7 @@ use App\Models\ScholarshipWorkflowTransition;
 use App\Models\User;
 use App\Services\BaseService;
 use App\Services\RoleService;
+use App\Services\ScholarshipSessionService;
 use BackedEnum;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -39,6 +40,7 @@ final class ScholarshipService extends BaseService implements ScholarshipService
         private readonly AadhaarServiceInterface $aadhaarService,
         private readonly WalletServiceInterface $walletService,
         private readonly RoleService $roles,
+        private readonly ScholarshipSessionService $sessions,
     ) {}
 
     public function createDraft(array $data, User $user): ScholarshipApplication
@@ -337,9 +339,9 @@ final class ScholarshipService extends BaseService implements ScholarshipService
         return $this->createBatch('PAYMENT', $applicationIds, ScholarshipApplicationStatus::FinalApplicationForPayment, $user, null, $remarks);
     }
 
-    public function recordPaymentResult(ScholarshipApplication $application, bool $success, ?string $reference, ?string $failureReason, User $user): ScholarshipApplication
+    public function recordPaymentResult(ScholarshipApplication $application, bool $success, ?string $reference, ?string $failureReason, User $user, array $bankResponse = []): ScholarshipApplication
     {
-        return DB::transaction(function () use ($application, $success, $reference, $failureReason, $user): ScholarshipApplication {
+        return DB::transaction(function () use ($application, $success, $reference, $failureReason, $user, $bankResponse): ScholarshipApplication {
             $status = $success ? ScholarshipApplicationStatus::PaymentCompleted : ScholarshipApplicationStatus::PaymentFailed;
             $fromStates = $this->stateSnapshot($application);
             $fromStatus = (int) $application->status;
@@ -360,6 +362,21 @@ final class ScholarshipService extends BaseService implements ScholarshipService
                 'updated_by' => $user->id,
             ])->save();
 
+            $this->recordBeneficiaryPaymentAttempt(
+                $application->refresh(),
+                $success ? PaymentAttemptState::Completed : PaymentAttemptState::Failed,
+                $user,
+                $reference,
+                $failureReason,
+                [
+                    ...$bankResponse,
+                    'payment_txn_reference' => $reference,
+                    'payment_date' => $success ? now()->toDateTimeString() : null,
+                    'failure_reason' => $failureReason,
+                    'bank_status' => $success ? 'success' : 'failed',
+                ],
+            );
+            $this->updateLatestPaymentBatchRow($application, $success, $failureReason);
             $this->audit($application, $success ? 'payment_success' : 'payment_failed', $fromStatus, $status->stage(), $failureReason ?: $status->label(), $user, $this->withFromStates([], $fromStates));
 
             return $application->refresh();
@@ -386,21 +403,29 @@ final class ScholarshipService extends BaseService implements ScholarshipService
         $class = (string) $this->inputValue($data, 'class', $application, '');
         $yearOfStudy = (int) $this->inputValue($data, 'current_year_of_study', $application, 0);
         $academicSessionId = (int) $this->inputValue($data, 'academic_session_id', $application, 0);
+        $scholarshipSession = $this->sessions->deriveForDate($application?->created_at ?? now());
+
+        if ($scholarshipSession === null) {
+            throw ValidationException::withMessages([
+                'scholarship_session' => 'Scholarship Session master is not configured for the application date.',
+            ]);
+        }
 
         $duplicateSession = ScholarshipApplication::query()
             ->where('student_aadhaar', $studentAadhaar)
-            ->where('academic_session_id', $academicSessionId)
+            ->where('scholarship_session_id', $scholarshipSession->id)
             ->when($application, fn ($query) => $query->whereKeyNot($application->id))
             ->exists();
 
         if ($duplicateSession) {
             throw ValidationException::withMessages([
-                'student_aadhaar' => 'One Student Aadhaar can have only one scholarship application in one Academic Session.',
+                'student_aadhaar' => 'One Student Aadhaar can have only one scholarship application in one Scholarship Session.',
             ]);
         }
 
         return [
             'academic_session_id' => $academicSessionId,
+            'scholarship_session_id' => $scholarshipSession->id,
             'scheme_id' => $schemeId,
             'district_id' => $this->nullableInt($this->inputValue($data, 'district_id', $application)),
             'district_union_id' => $this->nullableInt($this->inputValue($data, 'district_union_id', $application, $user->districtunion)),
@@ -434,7 +459,7 @@ final class ScholarshipService extends BaseService implements ScholarshipService
             'institution_name' => $this->inputValue($data, 'institution_name', $application),
             'admission_year' => $this->nullableInt($this->inputValue($data, 'admission_year', $application)),
             'first_year_session' => $this->inputValue($data, 'first_year_session', $application),
-            'scholarship_session' => $this->inputValue($data, 'scholarship_session', $application),
+            'scholarship_session' => $scholarshipSession->name,
             'current_year_of_study' => $yearOfStudy ?: null,
             'sangrahak_card_number' => $this->inputValue($data, 'sangrahak_card_number', $application),
             'head_of_family_aadhaar' => array_key_exists('head_of_family_aadhaar', $data) ? preg_replace('/\D/', '', (string) $data['head_of_family_aadhaar']) : $this->inputValue($data, 'head_of_family_aadhaar', $application),
@@ -542,12 +567,12 @@ final class ScholarshipService extends BaseService implements ScholarshipService
 
         $duplicateSession = ScholarshipApplication::query()
             ->where('student_aadhaar', $application->student_aadhaar)
-            ->where('academic_session_id', $application->academic_session_id)
+            ->where('scholarship_session_id', $application->scholarship_session_id)
             ->whereKeyNot($application->id)
             ->exists();
 
         if ($duplicateSession) {
-            $errors['student_aadhaar'] = 'One Student Aadhaar can have only one scholarship application in one Academic Session.';
+            $errors['student_aadhaar'] = 'One Student Aadhaar can have only one scholarship application in one Scholarship Session.';
         }
 
         $sameAadhaarDifferentBank = ScholarshipApplication::query()
@@ -640,7 +665,15 @@ final class ScholarshipService extends BaseService implements ScholarshipService
                 ]);
 
                 if ($type === 'PAYMENT') {
-                    $this->transition($application, 'submit_payment_batch', $remarks, $user);
+                    $application = $this->transition($application, 'submit_payment_batch', $remarks, $user);
+                    $this->recordBeneficiaryPaymentAttempt(
+                        $application,
+                        PaymentAttemptState::Submitted,
+                        $user,
+                        $batch->batch_number,
+                        null,
+                        ['batch_id' => $batch->id, 'batch_number' => $batch->batch_number],
+                    );
                 } else {
                     $this->audit($application, 'ic_batch_submitted', (int) $application->status, $application->current_stage, $remarks ?: 'IC batch submitted with MoM', $user, ['batch_id' => $batch->id]);
                 }
@@ -957,6 +990,53 @@ final class ScholarshipService extends BaseService implements ScholarshipService
         );
     }
 
+    private function recordBeneficiaryPaymentAttempt(
+        ScholarshipApplication $application,
+        PaymentAttemptState $state,
+        User $user,
+        ?string $reference = null,
+        ?string $failureReason = null,
+        array $response = [],
+    ): void {
+        $attemptNumber = (((int) ScholarshipPaymentAttempt::query()
+            ->where('scholarship_application_id', $application->id)
+            ->where('payment_purpose', 'scholarship_disbursement')
+            ->max('attempt_number')) ?: 0) + 1;
+
+        ScholarshipPaymentAttempt::query()->create([
+            'scholarship_application_id' => $application->id,
+            'wallet_transaction_id' => null,
+            'payment_purpose' => 'scholarship_disbursement',
+            'payment_channel' => 'axis_bank',
+            'transaction_number' => $reference,
+            'amount' => $application->amount,
+            'payment_state' => $state->value,
+            'payment_requested_at' => in_array($state, [PaymentAttemptState::Submitted, PaymentAttemptState::Processing], true) ? now() : null,
+            'payment_completed_at' => in_array($state, [PaymentAttemptState::Completed, PaymentAttemptState::Failed], true) ? now() : null,
+            'failure_reason' => $state === PaymentAttemptState::Failed ? $failureReason : null,
+            'attempt_number' => $attemptNumber,
+            'request_payload' => $state === PaymentAttemptState::Submitted ? $response : null,
+            'response_payload' => $state !== PaymentAttemptState::Submitted ? ($response ?: null) : null,
+            'created_by' => $user->id,
+        ]);
+    }
+
+    private function updateLatestPaymentBatchRow(ScholarshipApplication $application, bool $success, ?string $failureReason): void
+    {
+        $batchApplication = $application->batchApplications()
+            ->latest()
+            ->first();
+
+        if ($batchApplication === null) {
+            return;
+        }
+
+        $batchApplication->forceFill([
+            'payment_status' => $success ? 'success' : 'failed',
+            'payment_failure_reason' => $success ? null : $failureReason,
+        ])->save();
+    }
+
     private function notify(ScholarshipApplication $application, User $user, string $subject, string $body): void
     {
         ScholarshipNotification::query()->create([
@@ -985,7 +1065,9 @@ final class ScholarshipService extends BaseService implements ScholarshipService
 
     private function applicationNumber(ScholarshipApplication $application): string
     {
-        $session = $application->academicSession()->value('name') ?? now()->format('Y');
+        $session = $application->scholarshipSession()->value('name')
+            ?? $application->academicSession()->value('name')
+            ?? now()->format('Y');
 
         return 'SCH-'.str_replace('-', '', $session).'-'.str_pad((string) $application->id, 6, '0', STR_PAD_LEFT);
     }

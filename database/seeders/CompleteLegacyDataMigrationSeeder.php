@@ -217,7 +217,9 @@ final class CompleteLegacyDataMigrationSeeder extends Seeder
                 DB::table('scholarship_applications')->insert($chunk->map(function (object $row): array {
                     $status = ScholarshipApplicationStatus::tryFrom((int) $row->status) ?? ScholarshipApplicationStatus::Pending;
                     $createdAt = $this->dateValue($row->add_date) ?? now();
-                    $sessionId = $this->academicSessionId($row->scholarship_session ?: $row->first_year_session ?: $row->passing_year);
+                    $academicSessionId = $this->academicSessionId($row->first_year_session ?: $row->scholarship_session ?: $row->passing_year);
+                    $scholarshipSessionId = $this->scholarshipSessionIdForDate($createdAt)
+                        ?? $this->academicSessionId($row->scholarship_session);
                     $class = (string) $row->class;
                     $yearOfStudy = (int) ($row->education_year ?: 1);
                     $studentAadhaar = $this->digitsOrFallback($row->student_aadhar, $row->id);
@@ -226,7 +228,8 @@ final class CompleteLegacyDataMigrationSeeder extends Seeder
                         'uuid' => (string) Str::uuid(),
                         'application_number' => $row->application_id ?: 'LEGACY-'.$row->id,
                         'applicant_user_id' => $this->userIdForCsc((string) $row->added_by),
-                        'academic_session_id' => $sessionId,
+                        'academic_session_id' => $academicSessionId,
+                        'scholarship_session_id' => $scholarshipSessionId,
                         'scheme_id' => (int) $row->scheme,
                         'status' => (int) $row->status,
                         'status_label' => $status->label(),
@@ -273,7 +276,7 @@ final class CompleteLegacyDataMigrationSeeder extends Seeder
                         'institution_name' => $row->institute_name,
                         'admission_year' => $this->nullableInt($row->passing_year),
                         'first_year_session' => $row->first_year_session,
-                        'scholarship_session' => $row->scholarship_session,
+                        'scholarship_session' => DB::table('academic_sessions')->where('id', $scholarshipSessionId)->value('name') ?: $row->scholarship_session,
                         'current_year_of_study' => $yearOfStudy,
                         'sangrahak_card_number' => $row->sangrahak_card_number,
                         'head_of_family_aadhaar' => $this->digitsOrNull($row->father_aadhar),
@@ -784,6 +787,38 @@ final class CompleteLegacyDataMigrationSeeder extends Seeder
         ]);
 
         return $nextId;
+    }
+
+    private function scholarshipSessionIdForDate(mixed $date): ?int
+    {
+        $applicationDate = $date instanceof Carbon
+            ? $date->toDateString()
+            : Carbon::parse($date ?: now())->toDateString();
+
+        $sessionId = DB::table('academic_sessions')
+            ->whereDate('start_date', '<=', $applicationDate)
+            ->whereDate('end_date', '>=', $applicationDate)
+            ->orderByDesc('start_date')
+            ->value('id');
+
+        if ($sessionId !== null) {
+            return (int) $sessionId;
+        }
+
+        $sessionId = DB::table('academic_sessions')
+            ->whereDate('start_date', '<=', $applicationDate)
+            ->orderByDesc('start_date')
+            ->value('id');
+
+        if ($sessionId !== null) {
+            return (int) $sessionId;
+        }
+
+        $sessionId = DB::table('academic_sessions')
+            ->orderByDesc('start_date')
+            ->value('id');
+
+        return $sessionId !== null ? (int) $sessionId : null;
     }
 
     private function nullableInt(mixed $value): ?int

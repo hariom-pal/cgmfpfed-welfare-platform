@@ -168,7 +168,7 @@ final class ScholarshipViewModelService
                 $this->field('Session of 1st year in Professional course(Year)', $application->first_year_session),
                 $this->field('University Name / विश्वविद्यालय का नाम', $application->board_university),
                 $this->field('Institute Name / संस्थान का नाम', $application->institution_name),
-                $this->field('Session for which student is applying', $application->scholarship_session),
+                $this->field('Session for which student is applying', $application->scholarshipSession?->name ?? $application->scholarship_session),
             ]
             : [
                 $this->field('School Name / स्कूल के नाम'.($isProfessional ? ' of Class 12th' : ''), $application->school_college_name),

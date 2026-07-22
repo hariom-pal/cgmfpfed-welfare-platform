@@ -15,6 +15,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class ScholarshipApplication extends Model
@@ -27,6 +28,7 @@ class ScholarshipApplication extends Model
         'application_number',
         'applicant_user_id',
         'academic_session_id',
+        'scholarship_session_id',
         'scheme_id',
         'status',
         'status_label',
@@ -111,6 +113,11 @@ class ScholarshipApplication extends Model
     public function academicSession(): BelongsTo
     {
         return $this->belongsTo(AcademicSession::class);
+    }
+
+    public function scholarshipSession(): BelongsTo
+    {
+        return $this->belongsTo(AcademicSession::class, 'scholarship_session_id');
     }
 
     public function scheme(): BelongsTo
@@ -202,9 +209,20 @@ class ScholarshipApplication extends Model
         return $this->hasMany(ScholarshipWorkflowTransition::class);
     }
 
+    public function latestWorkflowTransition(): HasOne
+    {
+        return $this->hasOne(ScholarshipWorkflowTransition::class)
+            ->latestOfMany('acted_at');
+    }
+
     public function paymentAttempts(): HasMany
     {
         return $this->hasMany(ScholarshipPaymentAttempt::class);
+    }
+
+    public function batchApplications(): HasMany
+    {
+        return $this->hasMany(ScholarshipBatchApplication::class);
     }
 
     public function getStatusEnumAttribute(): ?ScholarshipApplicationStatus
@@ -216,6 +234,7 @@ class ScholarshipApplication extends Model
     {
         return [
             'status' => 'integer',
+            'scholarship_session_id' => 'integer',
             'application_state' => ApplicationState::class,
             'submission_state' => SubmissionState::class,
             'workflow_state' => WorkflowState::class,

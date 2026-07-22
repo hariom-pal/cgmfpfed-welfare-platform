@@ -126,6 +126,127 @@ final class ScholarshipModuleTest extends TestCase
         ]);
     }
 
+    public function test_scholarship_session_is_derived_from_application_date_and_filters_by_last_action(): void
+    {
+        $user = $this->userWithPermissions();
+        $scheme = Scheme::factory()->create(['id' => 1, 'code' => 'SCH1', 'name' => 'Class Scholarship']);
+        $currentSession = AcademicSession::factory()->create([
+            'name' => '2026-27',
+            'start_date' => '2026-04-01',
+            'end_date' => '2027-03-31',
+        ]);
+        $otherSession = AcademicSession::factory()->create([
+            'name' => '2025-26',
+            'start_date' => '2025-04-01',
+            'end_date' => '2026-03-31',
+        ]);
+
+        $application = $this->service()->createDraft($this->validPayload($currentSession->id, 1), $user);
+
+        $this->assertSame($currentSession->id, $application->scholarship_session_id);
+        $this->assertSame('2026-27', $application->scholarship_session);
+
+        $matched = ScholarshipApplication::factory()->submitted()->create([
+            'application_number' => 'SCH-202627-000501',
+            'scheme_id' => $scheme->id,
+            'academic_session_id' => $currentSession->id,
+            'scholarship_session_id' => $currentSession->id,
+            'scholarship_session' => $currentSession->name,
+            'student_name' => 'Matched Student',
+            'student_aadhaar' => '444455556666',
+        ]);
+        $excluded = ScholarshipApplication::factory()->submitted()->create([
+            'application_number' => 'SCH-202526-000502',
+            'scheme_id' => $scheme->id,
+            'academic_session_id' => $otherSession->id,
+            'scholarship_session_id' => $otherSession->id,
+            'scholarship_session' => $otherSession->name,
+            'student_name' => 'Excluded Student',
+            'student_aadhaar' => '777788889999',
+        ]);
+
+        DB::table('scholarship_workflow_transitions')->insert([
+            [
+                'scholarship_application_id' => $matched->id,
+                'to_application_state' => 'in_workflow',
+                'to_workflow_state' => 'pending_samiti',
+                'to_workflow_stage' => 'samiti',
+                'to_payment_state' => 'wallet_success',
+                'to_approval_state' => 'pending',
+                'action' => 'submitted',
+                'acted_by' => $user->id,
+                'acted_at' => '2026-07-20 10:00:00',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'scholarship_application_id' => $excluded->id,
+                'to_application_state' => 'in_workflow',
+                'to_workflow_state' => 'pending_samiti',
+                'to_workflow_stage' => 'samiti',
+                'to_payment_state' => 'wallet_success',
+                'to_approval_state' => 'pending',
+                'action' => 'submitted',
+                'acted_by' => $user->id,
+                'acted_at' => '2026-07-10 10:00:00',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+        ]);
+
+        $this->get(route('applications.index', [
+            'scheme' => $scheme->id,
+            'scholarship_session_id' => $currentSession->id,
+            'last_action_from_date' => '2026-07-20',
+            'last_action_to_date' => '2026-07-20',
+        ]))
+            ->assertOk()
+            ->assertSee('SCH-202627-000501')
+            ->assertDontSee('SCH-202526-000502');
+    }
+
+    public function test_scholarship_payment_attempts_are_independent_from_wallet_payment(): void
+    {
+        $user = $this->userWithPermissions();
+        $session = AcademicSession::factory()->create(['name' => '2026-27']);
+        Scheme::factory()->create(['id' => 1, 'code' => 'SCH1', 'name' => 'Class Scholarship']);
+
+        $application = $this->service()->createDraft($this->validPayload($session->id, 1), $user);
+        $application = $this->service()->submit($application, $user);
+        $application = $this->service()->transition($application, 'recommend', 'Samiti verified', $user);
+        $application = $this->service()->transition($application, 'recommend', 'IC verified', $user);
+        $application = $this->service()->transition($application, 'recommend', 'DU verified', $user);
+        $application = $this->service()->transition($application, 'recommend', 'HQ recommended', $user);
+        $application = $this->service()->transition($application, 'recommend', 'Accounts finalized', $user);
+
+        $batch = $this->service()->createPaymentBatch([$application->id], $user, 'Payment file submitted');
+
+        $this->assertDatabaseHas('scholarship_payment_attempts', [
+            'scholarship_application_id' => $application->id,
+            'payment_purpose' => 'scholarship_disbursement',
+            'payment_channel' => 'axis_bank',
+            'transaction_number' => $batch->batch_number,
+            'payment_state' => 'submitted',
+            'wallet_transaction_id' => null,
+        ]);
+
+        $paid = $this->service()->recordPaymentResult($application->refresh(), true, 'AXIS-UTR-1', null, $user);
+
+        $this->assertSame(ScholarshipApplicationStatus::PaymentCompleted->value, $paid->status);
+        $this->assertSame('AXIS-UTR-1', $paid->payment_reference_id);
+        $this->assertDatabaseHas('scholarship_payment_attempts', [
+            'scholarship_application_id' => $application->id,
+            'payment_purpose' => 'scholarship_disbursement',
+            'payment_channel' => 'axis_bank',
+            'transaction_number' => 'AXIS-UTR-1',
+            'payment_state' => 'completed',
+            'wallet_transaction_id' => null,
+        ]);
+        $this->assertDatabaseMissing('scholarship_wallet_transactions', [
+            'reference' => 'AXIS-UTR-1',
+        ]);
+    }
+
     public function test_lifecycle_factories_use_normalized_enums(): void
     {
         $application = ScholarshipApplication::factory()->completed()->create();

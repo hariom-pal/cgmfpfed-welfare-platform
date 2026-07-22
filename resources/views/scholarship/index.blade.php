@@ -22,20 +22,54 @@
         <form method="GET" class="row g-2 align-items-end mb-3">
             <input type="hidden" name="scheme" value="{{ $filters['scheme_id'] }}">
             <input type="hidden" name="category" value="{{ $selectedCategory }}">
-            <div class="col-md-4">
-                <label class="form-label" for="q">Search</label>
-                <input class="form-control" id="q" name="q" value="{{ $filters['q'] ?? '' }}" placeholder="Application, name, or Aadhaar">
+            <div class="col-md-3">
+                <label class="form-label" for="application_id">Application ID</label>
+                <input class="form-control" id="application_id" name="application_id" value="{{ $filters['application_id'] ?? '' }}">
             </div>
             <div class="col-md-3">
-                <label class="form-label" for="academic_session_id">Session</label>
-                <select class="form-select" id="academic_session_id" name="academic_session_id">
+                <label class="form-label" for="aadhaar_number">Aadhaar Number</label>
+                <input class="form-control" id="aadhaar_number" name="aadhaar_number" value="{{ $filters['aadhaar_number'] ?? '' }}" maxlength="12">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label" for="scholarship_session_id">Scholarship Session</label>
+                <select class="form-select" id="scholarship_session_id" name="scholarship_session_id">
                     <option value="">All</option>
                     @foreach($sessions as $session)
-                        <option value="{{ $session->id }}" @selected(($filters['academic_session_id'] ?? '') == $session->id)>{{ $session->name }}</option>
+                        <option value="{{ $session->id }}" @selected(($filters['scholarship_session_id'] ?? '') == $session->id)>{{ $session->name }}</option>
                     @endforeach
                 </select>
             </div>
-            <div class="col-md-2 d-flex gap-2">
+            <div class="col-md-3">
+                <label class="form-label" for="current_status">Current Status</label>
+                <select class="form-select" id="current_status" name="current_status">
+                    <option value="">All</option>
+                    @foreach($statuses as $value => $label)
+                        <option value="{{ $value }}" @selected(($filters['current_status'] ?? '') === $value)>{{ $label }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label" for="workflow_stage">Current Workflow Level</label>
+                <select class="form-select" id="workflow_stage" name="workflow_stage">
+                    <option value="">All</option>
+                    @foreach($workflowStages as $value => $label)
+                        <option value="{{ $value }}" @selected(($filters['workflow_stage'] ?? '') === $value)>{{ $label }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label" for="last_action_from_date">Last Action From</label>
+                <input class="form-control" type="date" id="last_action_from_date" name="last_action_from_date" value="{{ $filters['last_action_from_date'] ?? '' }}">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label" for="last_action_to_date">Last Action To</label>
+                <input class="form-control" type="date" id="last_action_to_date" name="last_action_to_date" value="{{ $filters['last_action_to_date'] ?? '' }}">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label" for="q">Search</label>
+                <input class="form-control" id="q" name="q" value="{{ $filters['q'] ?? '' }}" placeholder="Name or application">
+            </div>
+            <div class="col-md-3 d-flex gap-2">
                 <button class="btn btn-outline-primary" type="submit"><i class="fa-solid fa-magnifying-glass me-1"></i>Search</button>
                 <a class="btn btn-outline-secondary" href="{{ route('applications.index', ['scheme' => $filters['scheme_id']]) }}">Reset</a>
             </div>
@@ -57,6 +91,7 @@
                     <th>Student</th>
                     <th>Scheme</th>
                     <th>Status</th>
+                    <th>Last Action</th>
                     <th class="text-end">Amount</th>
                     <th class="text-end">Actions</th>
                 </tr>
@@ -66,7 +101,7 @@
                     <tr>
                         <td>
                             <div class="fw-semibold">{{ $application->application_number ?? 'Draft #'.$application->id }}</div>
-                            <div class="small text-muted">{{ $application->academicSession?->name }}</div>
+                            <div class="small text-muted">{{ $application->scholarshipSession?->name ?? $application->scholarship_session }}</div>
                         </td>
                         <td>
                             <div>{{ $application->student_name }}</div>
@@ -74,6 +109,7 @@
                         </td>
                         <td>{{ $application->scheme?->name }}</td>
                         <td><span class="badge text-bg-{{ $application->is_draft ? 'secondary' : 'primary' }}">{{ $application->status_label }}</span></td>
+                        <td>{{ $application->latestWorkflowTransition?->acted_at?->format('d M Y H:i') ?? 'N/A' }}</td>
                         <td class="text-end">₹{{ number_format((float) $application->amount, 2) }}</td>
                         <td class="text-end">
                             <a class="btn btn-sm btn-outline-primary" href="{{ route('applications.show', ['application' => $application, 'scheme' => $filters['scheme_id'], 'category' => $selectedCategory]) }}"><i class="fa-regular fa-eye"></i></a>
@@ -83,7 +119,7 @@
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="6" class="text-center text-muted py-4">No applications found.</td></tr>
+                    <tr><td colspan="7" class="text-center text-muted py-4">No applications found.</td></tr>
                 @endforelse
                 </tbody>
             </table>

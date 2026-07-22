@@ -96,7 +96,16 @@ class ScholarshipWorkflowController extends Controller
             'success' => ['required', 'boolean'],
             'payment_reference_id' => ['nullable', 'string', 'max:255'],
             'payment_failure_reason' => ['nullable', 'string'],
+            'payment_failure_code' => ['nullable', 'string', 'max:100'],
+            'payment_response_message' => ['nullable', 'string'],
+            'bank_response' => ['nullable'],
         ]);
+
+        $bankResponse = array_filter([
+            'failure_code' => $data['payment_failure_code'] ?? null,
+            'response_message' => $data['payment_response_message'] ?? null,
+            'raw_response' => $data['bank_response'] ?? null,
+        ], fn (mixed $value): bool => filled($value));
 
         $this->service->recordPaymentResult(
             $application,
@@ -104,6 +113,7 @@ class ScholarshipWorkflowController extends Controller
             $data['payment_reference_id'] ?? null,
             $data['payment_failure_reason'] ?? null,
             $request->user(),
+            $bankResponse,
         );
 
         return back()->with('status', 'Payment result recorded.');

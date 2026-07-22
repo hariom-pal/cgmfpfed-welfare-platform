@@ -50,5 +50,8 @@ interface ScholarshipServiceInterface
      */
     public function createPaymentBatch(array $applicationIds, User $user, ?string $remarks = null): ScholarshipWorkflowBatch;
 
-    public function recordPaymentResult(ScholarshipApplication $application, bool $success, ?string $reference, ?string $failureReason, User $user): ScholarshipApplication;
+    /**
+     * @param  array<string, mixed>  $bankResponse
+     */
+    public function recordPaymentResult(ScholarshipApplication $application, bool $success, ?string $reference, ?string $failureReason, User $user, array $bankResponse = []): ScholarshipApplication;
 }

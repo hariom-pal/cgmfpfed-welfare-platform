@@ -6,12 +6,15 @@ namespace App\Http\Controllers;
 
 use App\Domains\Scholarship\Contracts\ScholarshipRepositoryInterface;
 use App\Domains\Scholarship\Contracts\ScholarshipServiceInterface;
+use App\Domains\Scholarship\Enums\ScholarshipApplicationStatus;
+use App\Domains\Scholarship\Enums\WorkflowStage;
 use App\Models\AcademicSession;
 use App\Models\Scheme;
 use App\Models\ScholarshipApplication;
 use App\Models\ScholarshipWalletTransaction;
 use App\Services\ApplicationCategoryService;
 use App\Services\RoleService;
+use App\Services\ScholarshipSessionService;
 use App\Services\ScholarshipViewModelService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -29,6 +32,7 @@ class ScholarshipController extends Controller
         private readonly ScholarshipViewModelService $viewModels,
         private readonly RoleService $roles,
         private readonly ApplicationCategoryService $categories,
+        private readonly ScholarshipSessionService $sessions,
     ) {}
 
     public function index(Request $request): View
@@ -51,6 +55,8 @@ class ScholarshipController extends Controller
             'applications' => $this->applications->paginateFor($request->user(), $filters, 20),
             'schemes' => Scheme::query()->where('is_active', true)->orderBy('name')->get(),
             'sessions' => AcademicSession::query()->orderByDesc('start_date')->get(),
+            'statuses' => $this->statusOptions(),
+            'workflowStages' => $this->workflowStageOptions(),
             'filters' => $filters,
             'selectedScheme' => Scheme::query()->find($filters['scheme_id']),
             'categories' => $this->categories->labels(),
@@ -102,6 +108,7 @@ class ScholarshipController extends Controller
 
         $application->load([
             'academicSession',
+            'scholarshipSession',
             'scheme',
             'district',
             'districtUnion',
@@ -117,6 +124,9 @@ class ScholarshipController extends Controller
             'documents.replacer',
             'currentDocuments',
             'tendupattaCollections',
+            'workflowTransitions.actor',
+            'latestWorkflowTransition',
+            'paymentAttempts',
         ]);
 
         return view('scholarship.show', $this->viewModels->applicationDetails($application));
@@ -213,6 +223,7 @@ class ScholarshipController extends Controller
         return [
             'application' => $application,
             'selectedScheme' => $selectedScheme,
+            'currentScholarshipSession' => $application?->scholarshipSession ?? $this->sessions->deriveForDate($application?->created_at ?? now()),
             'schemes' => Scheme::query()->where('is_active', true)->orderBy('name')->get(),
             'sessions' => AcademicSession::query()->orderByDesc('start_date')->get(),
             'districts' => DB::table('source_data_archives')
@@ -263,7 +274,6 @@ class ScholarshipController extends Controller
             'institution_name' => ['nullable', 'string', 'max:255'],
             'admission_year' => ['nullable', 'integer', 'min:1900', 'max:2100'],
             'first_year_session' => ['nullable', 'string', 'max:20'],
-            'scholarship_session' => ['nullable', 'string', 'max:20'],
             'current_year_of_study' => ['nullable', 'integer', 'min:1', 'max:10'],
             'sangrahak_card_number' => ['nullable', 'string', 'max:255'],
             'head_of_family_aadhaar' => ['nullable', 'digits:12'],
@@ -359,18 +369,60 @@ class ScholarshipController extends Controller
             $filters['scheme_id'] = $request->query('scheme');
         }
 
+        if (! isset($filters['application_id']) && $request->filled('application')) {
+            $filters['application_id'] = $request->query('application');
+        }
+
+        if (! isset($filters['aadhaar_number']) && $request->filled('student_aadhaar')) {
+            $filters['aadhaar_number'] = $request->query('student_aadhaar');
+        }
+
+        if (! isset($filters['current_status']) && $request->filled('status')) {
+            $filters['current_status'] = $request->query('status');
+        }
+
         if (! isset($filters['category']) && $request->filled('status_bucket')) {
             $filters['category'] = $request->query('status_bucket');
         }
 
-        if (isset($filters['scheme_id']) && filled($filters['scheme_id'])) {
-            $filters['scheme_id'] = (int) $filters['scheme_id'];
-        } else {
-            unset($filters['scheme_id']);
+        foreach (['scheme_id', 'academic_session_id', 'scholarship_session_id', 'current_status'] as $integerFilter) {
+            if (isset($filters[$integerFilter]) && filled($filters[$integerFilter])) {
+                $filters[$integerFilter] = (int) $filters[$integerFilter];
+            } else {
+                unset($filters[$integerFilter]);
+            }
+        }
+
+        foreach (['application_id', 'aadhaar_number', 'workflow_stage', 'last_action_from_date', 'last_action_to_date', 'q'] as $textFilter) {
+            if (isset($filters[$textFilter]) && filled($filters[$textFilter])) {
+                $filters[$textFilter] = trim((string) $filters[$textFilter]);
+            } else {
+                unset($filters[$textFilter]);
+            }
         }
 
         $filters['category'] = $this->categories->normalize($filters['category'] ?? null);
 
         return $filters;
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function statusOptions(): array
+    {
+        return collect(ScholarshipApplicationStatus::cases())
+            ->mapWithKeys(fn (ScholarshipApplicationStatus $status): array => [$status->value => $status->label()])
+            ->all();
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function workflowStageOptions(): array
+    {
+        return collect(WorkflowStage::cases())
+            ->mapWithKeys(fn (WorkflowStage $stage): array => [$stage->value => str($stage->value)->replace('_', ' ')->title()->toString()])
+            ->all();
     }
 }

@@ -48,6 +48,10 @@
                     </select>
                 </div>
                 <div class="col-md-4">
+                    <label class="form-label">Scholarship Session</label>
+                    <input class="form-control" value="{{ $application?->scholarshipSession?->name ?? $application?->scholarship_session ?? $currentScholarshipSession?->name ?? 'Not configured' }}" readonly>
+                </div>
+                <div class="col-md-4">
                     <label class="form-label">Scheme / योजना <span class="text-danger">*</span></label>
                     <select class="form-select" name="scheme_id" id="scheme_id" required @disabled($selectedSchemeModel || ($application && ! $application->is_draft))>
                         @foreach($schemes as $scheme)
@@ -192,7 +196,7 @@
                 <div class="col-md-4"><label class="form-label">Institute Name / संस्थान <span class="text-danger">*</span></label><input class="form-control" name="institution_name" value="{{ old('institution_name', $application?->institution_name) }}"></div>
                 <div class="col-md-4"><label class="form-label">University Name / विश्वविद्यालय <span class="text-danger">*</span></label><input class="form-control" name="board_university" value="{{ old('board_university', $application?->board_university) }}"></div>
                 <div class="col-md-4"><label class="form-label">First Year Session</label><input class="form-control" name="first_year_session" value="{{ old('first_year_session', $application?->first_year_session) }}"></div>
-                <div class="col-md-4"><label class="form-label">Scholarship Session</label><input class="form-control" name="scholarship_session" value="{{ old('scholarship_session', $application?->scholarship_session) }}"></div>
+                <div class="col-md-4"><label class="form-label">Scholarship Session</label><input class="form-control" name="derived_scholarship_session" value="{{ $application?->scholarshipSession?->name ?? $application?->scholarship_session ?? $currentScholarshipSession?->name ?? 'Not configured' }}" readonly></div>
             </div>
         </x-card>
 
@@ -293,7 +297,7 @@
             function toggleScheme() {
                 const isCourse = ['3', '4'].includes(scheme.value);
                 document.querySelectorAll('.course-field').forEach((node) => node.style.display = isCourse ? '' : 'none');
-                document.querySelectorAll('.course-field input, .course-field select').forEach((node) => node.required = isCourse && !['first_year_session', 'scholarship_session'].includes(node.name));
+                document.querySelectorAll('.course-field input, .course-field select').forEach((node) => node.required = isCourse && !['first_year_session', 'derived_scholarship_session'].includes(node.name));
             }
 
             function toggleArea() {
