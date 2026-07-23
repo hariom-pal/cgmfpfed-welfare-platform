@@ -85,14 +85,14 @@ final class AuthorizationFoundationTest extends TestCase
         $children = collect($menu->firstWhere('label', 'Scholarship Applications')['children'] ?? []);
 
         $this->assertSame(
-            ['All Applications', 'Pending', 'Pending at VLE', 'Rejected', 'Completed', 'Last Completed'],
+            ['All Applications', 'Pending', 'Pending at VLE', 'Rejected', 'Completed', 'Payment Failed'],
             $children->pluck('label')->all(),
         );
         $this->assertSame(route('applications.index', ['status' => 'pending']), $children->firstWhere('label', 'Pending')['url']);
         $this->assertSame(route('applications.index', ['status' => 'pending_vle']), $children->firstWhere('label', 'Pending at VLE')['url']);
         $this->assertSame(route('applications.index', ['status' => 'rejected']), $children->firstWhere('label', 'Rejected')['url']);
         $this->assertSame(route('applications.index', ['status' => 'completed']), $children->firstWhere('label', 'Completed')['url']);
-        $this->assertSame(route('applications.index', ['status' => 'last_completed']), $children->firstWhere('label', 'Last Completed')['url']);
+        $this->assertSame(route('applications.index', ['status' => 'payment_failed']), $children->firstWhere('label', 'Payment Failed')['url']);
     }
 
     public function test_master_management_is_super_admin_only_even_when_other_roles_have_permission(): void

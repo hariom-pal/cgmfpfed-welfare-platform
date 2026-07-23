@@ -25,6 +25,7 @@ use App\Services\MockAadhaarService;
 use App\Services\MockDigiLockerService;
 use App\Services\MockTendupattaService;
 use App\Services\PermissionService;
+use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
@@ -69,6 +70,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        Paginator::useBootstrapFive();
+
         Gate::policy(ScholarshipApplication::class, ScholarshipApplicationPolicy::class);
 
         foreach (config('masters', []) as $master) {

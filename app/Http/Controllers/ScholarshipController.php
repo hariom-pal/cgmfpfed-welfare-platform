@@ -30,7 +30,7 @@ class ScholarshipController extends Controller
     /**
      * @var list<string>
      */
-    private const STATUS_MENU_FILTERS = ['pending', 'pending_vle', 'rejected', 'completed', 'last_completed'];
+    private const STATUS_MENU_FILTERS = ['pending', 'pending_vle', 'rejected', 'completed', 'payment_failed'];
 
     public function __construct(
         private readonly ScholarshipRepositoryInterface $applications,
@@ -392,15 +392,15 @@ class ScholarshipController extends Controller
             }
         }
 
-        if (isset($filters['status']) && in_array($filters['status'], self::STATUS_MENU_FILTERS, true)) {
-            if ($filters['status'] === 'last_completed' && ! isset($filters['academic_session_id'])) {
-                $currentSession = $this->sessions->deriveForDate(now());
-                if ($currentSession !== null) {
-                    $filters['academic_session_id'] = $currentSession->id;
-                }
-            }
-        } else {
+        if (! isset($filters['status']) || ! in_array($filters['status'], self::STATUS_MENU_FILTERS, true)) {
             unset($filters['status']);
+        }
+
+        if (! $request->has('academic_session_id')) {
+            $currentSession = $this->sessions->deriveForDate(now());
+            if ($currentSession !== null) {
+                $filters['academic_session_id'] = $currentSession->id;
+            }
         }
 
         return $filters;
@@ -440,13 +440,8 @@ class ScholarshipController extends Controller
      */
     private function lastActionRoles(): array
     {
-        return [
-            'VLE' => 'VLE',
-            'Samiti' => 'Samiti',
-            'Investigation Commitee' => 'IC',
-            'District Union' => 'District Union',
-            'Super Admin' => 'HQ',
-            'Accounts' => 'Accounts',
-        ];
+        $roles = collect(config('legacy_authorization.roles', []))->values()->unique();
+
+        return $roles->combine($roles)->all();
     }
 }

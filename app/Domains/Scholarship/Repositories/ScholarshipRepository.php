@@ -6,6 +6,7 @@ namespace App\Domains\Scholarship\Repositories;
 
 use App\Domains\Scholarship\Contracts\ScholarshipRepositoryInterface;
 use App\Domains\Scholarship\Enums\ScholarshipApplicationStatus;
+use App\Domains\Scholarship\Enums\WorkflowState;
 use App\Models\ScholarshipApplication;
 use App\Models\User;
 use App\Repositories\BaseRepository;
@@ -78,10 +79,10 @@ final class ScholarshipRepository extends BaseRepository implements ScholarshipR
             ->when($filters['status'] ?? null, function (Builder $builder, mixed $status): void {
                 match ($status) {
                     'pending' => $builder->whereIn('status', ScholarshipApplicationStatus::underProcessValues()),
-                    'pending_vle' => $builder->whereIn('status', ScholarshipApplicationStatus::pendingAtVleValues()),
+                    'pending_vle' => $builder->where('workflow_state', WorkflowState::PendingAtVle->value),
                     'rejected' => $builder->whereIn('status', ScholarshipApplicationStatus::rejectedValues()),
                     'completed' => $builder->whereIn('status', ScholarshipApplicationStatus::completedValues()),
-                    'last_completed' => $builder->whereIn('status', ScholarshipApplicationStatus::completedValues())->reorder('completed_at', 'desc'),
+                    'payment_failed' => $builder->whereIn('status', ScholarshipApplicationStatus::failedValues()),
                     default => null,
                 };
             });

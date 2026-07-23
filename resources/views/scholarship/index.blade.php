@@ -5,7 +5,7 @@
     'pending_vle' => 'Pending at VLE',
     'rejected' => 'Rejected',
     'completed' => 'Completed',
-    'last_completed' => 'Last Completed',
+    'payment_failed' => 'Payment Failed',
 ])
 @php($currentStatus = $filters['status'] ?? null)
 @php($currentStatusLabel = $statusLabels[$currentStatus] ?? null)
@@ -20,13 +20,11 @@
         <a class="btn btn-sm btn-outline-primary" href="{{ route('applications.index') }}">Change Scheme</a>
     </div>
 
-    @if($currentStatus === 'last_completed')
-        @php($currentSessionForLastCompleted = $sessions->firstWhere('id', $filters['academic_session_id'] ?? null))
-        <div class="alert alert-secondary d-flex flex-wrap align-items-center justify-content-between gap-2">
-            <div><span class="fw-semibold">Last Completed — Academic Session:</span> {{ $currentSessionForLastCompleted?->name ?? 'Not set' }}</div>
-            <div class="small text-muted">Use the Academic Session filter below to view a different session.</div>
-        </div>
-    @endif
+    @php($currentSessionSelected = $sessions->firstWhere('id', $filters['academic_session_id'] ?? null))
+    <div class="alert alert-secondary d-flex flex-wrap align-items-center justify-content-between gap-2">
+        <div><span class="fw-semibold">Academic Session:</span> {{ $currentSessionSelected?->name ?? 'All Sessions' }}</div>
+        <div class="small text-muted">Use the Academic Session filter below to view a different session.</div>
+    </div>
 
     <x-card title="Applications" icon="fa-regular fa-file-lines">
         <x-slot:tools>

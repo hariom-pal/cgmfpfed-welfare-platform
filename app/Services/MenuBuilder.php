@@ -44,7 +44,7 @@ final class MenuBuilder
                 'Pending at VLE' => 'pending_vle',
                 'Rejected' => 'rejected',
                 'Completed' => 'completed',
-                'Last Completed' => 'last_completed',
+                'Payment Failed' => 'payment_failed',
             ])->map(fn (string $status, string $label): array => $this->routeItem(
                 $label,
                 'applications.index',
