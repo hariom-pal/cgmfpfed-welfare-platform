@@ -74,7 +74,7 @@ final class AuthController extends Controller
         $payload = $this->decryptLegacyPayload($validated['message']);
 
         if ($payload === null) {
-            return redirect()->route('login')->withErrors(['username' => 'Invalid legacy login payload.']);
+            return redirect()->route('login')->withErrors(['username' => 'Invalid login request.']);
         }
 
         $user = User::query()
@@ -83,7 +83,7 @@ final class AuthController extends Controller
             ->first();
 
         if ($user === null || ! $user->isActive()) {
-            return redirect()->route('login')->withErrors(['username' => 'Legacy user is not active in this portal.']);
+            return redirect()->route('login')->withErrors(['username' => 'This account is not active in this portal.']);
         }
 
         Auth::login($user);

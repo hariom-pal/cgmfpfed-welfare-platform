@@ -61,6 +61,9 @@ return [
         'reports.view' => ['roles' => [1, 5], 'permissions' => [16, 34, 39]],
         'masters.manage' => ['roles' => [1]],
         'settings.manage' => ['permissions' => [1, 2, 4]],
+        'users.view' => ['permissions' => [1, 2]],
+        'users.create' => ['permissions' => [1]],
+        'users.update' => ['permissions' => [2]],
     ],
 
     'vle_route_prefixes' => [

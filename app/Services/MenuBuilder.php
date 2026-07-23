@@ -78,8 +78,8 @@ final class MenuBuilder
             $items[] = $this->routeOrDisabledItem('Reports', 'reports.index', 'fa-solid fa-chart-column');
         }
 
-        if ($this->roles->isSuperAdmin($user)) {
-            $items[] = $this->disabledItem('User Management', 'fa-solid fa-users-gear');
+        if ($this->permissions->can($user, 'users.view')) {
+            $items[] = $this->routeItem('User Management', 'users.index', 'fa-solid fa-users-gear', ['users.*']);
         }
 
         if ($this->permissions->can($user, 'masters.manage')) {

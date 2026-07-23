@@ -56,14 +56,20 @@ final class ExportTemplateService
      * Merged, ordered view of a module's fields: previously-saved rows first (in the
      * admin's chosen order), then any field the code now defines that the template
      * hasn't recorded yet — appended as hidden. Enabling a new column is then a pure
-     * admin-UI action; no code change or migration is needed.
+     * admin-UI action; no code change or migration is needed. Saved rows for a field the
+     * code no longer defines (e.g. a field that was removed) are dropped from the merged
+     * view — they stay in the database as harmless orphans and simply stop being offered
+     * or exported, with no manual cleanup required.
      *
      * @return list<array{field_name: string, display_name: string, is_visible: bool, column_order: int}>
      */
     public function fieldsFor(string $module): array
     {
         $template = $this->templateFor($module);
-        $known = $template->fields()->get();
+        $availableFields = $this->definitionFor($module)->availableFields();
+        $known = $template->fields()->get()->filter(
+            fn (ExportTemplateField $field): bool => array_key_exists($field->field_name, $availableFields)
+        );
 
         $rows = $known->map(fn (ExportTemplateField $field): array => [
             'field_name' => $field->field_name,
@@ -75,7 +81,7 @@ final class ExportTemplateService
         $seen = $known->pluck('field_name')->all();
         $nextOrder = ((int) $known->max('column_order')) + 1;
 
-        foreach ($this->definitionFor($module)->availableFields() as $fieldName => $label) {
+        foreach ($availableFields as $fieldName => $label) {
             if (in_array($fieldName, $seen, true)) {
                 continue;
             }

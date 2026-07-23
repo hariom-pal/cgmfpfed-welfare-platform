@@ -76,6 +76,10 @@ final class MasterManagementTest extends TestCase
             ['id' => 9002, 'role_id' => 1, 'permission_id' => 5],
             ['id' => 9003, 'role_id' => 1, 'permission_id' => 6],
             ['id' => 9004, 'role_id' => 1, 'permission_id' => 16],
+            // Matches real production role_priviledge data, where Super Admin also holds
+            // permissions 1 ("Add User") and 2 ("Edit User") — needed for User Management access.
+            ['id' => 9005, 'role_id' => 1, 'permission_id' => 1],
+            ['id' => 9006, 'role_id' => 1, 'permission_id' => 2],
         ]);
 
         $this->actingAs($user);

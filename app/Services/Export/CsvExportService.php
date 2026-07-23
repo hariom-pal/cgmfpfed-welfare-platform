@@ -38,7 +38,7 @@ final class CsvExportService
                 return;
             }
 
-            fputcsv($handle, array_values($columns));
+            fputcsv($handle, array_values($columns), escape: '\\');
 
             $query->lazy(self::CHUNK_SIZE)->each(function (mixed $row) use ($handle, $definition, $columns): void {
                 $data = $definition->resolveRow($row);
@@ -46,7 +46,7 @@ final class CsvExportService
                 fputcsv($handle, array_map(
                     static fn (string $field): string => (string) ($data[$field] ?? ''),
                     array_keys($columns),
-                ));
+                ), escape: '\\');
             });
 
             fclose($handle);

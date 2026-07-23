@@ -879,12 +879,6 @@ final class ScholarshipModuleTest extends TestCase
         $scheme = Scheme::factory()->create(['id' => 1, 'code' => 'SCH1', 'name' => 'Class Scholarship']);
         $session = AcademicSession::factory()->create(['name' => '2026-27']);
 
-        User::factory()->create([
-            'user_type' => (int) config('csc.vle_role_id'),
-            'csc_id' => '888777666555',
-            'name' => 'Linked VLE Export',
-        ]);
-
         $application = ScholarshipApplication::factory()->submitted()->create([
             'application_number' => 'SCH-CSV-AUDIT-FIELDS',
             'applicant_user_id' => null,
@@ -921,10 +915,15 @@ final class ScholarshipModuleTest extends TestCase
         ]));
 
         $csv = $response->streamedContent();
+        $header = strtok($csv, "\n");
+        $this->assertIsString($header);
 
-        $this->assertStringContainsString('Added By (Legacy CSC ID)', $csv);
+        $this->assertStringContainsString('Added By (CSC ID)', $header);
+        $this->assertStringContainsString('Current Stage', $header);
+        $this->assertStringNotContainsString('Legacy', $header);
+        $this->assertStringNotContainsString('VLE Name', $header);
+        $this->assertStringNotContainsString('Linked Laravel User', $header);
         $this->assertStringContainsString('888777666555', $csv);
-        $this->assertStringContainsString('Linked VLE Export', $csv);
         $this->assertStringContainsString('Samiti', $csv);
         $this->assertStringContainsString('Looks good', $csv);
     }

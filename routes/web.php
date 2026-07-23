@@ -11,6 +11,7 @@ use App\Http\Controllers\ScholarshipController;
 use App\Http\Controllers\ScholarshipDocumentController;
 use App\Http\Controllers\ScholarshipReportController;
 use App\Http\Controllers\ScholarshipWorkflowController;
+use App\Http\Controllers\UserManagementController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', fn () => redirect()->route('login'));
@@ -68,6 +69,20 @@ Route::middleware(['auth', 'legacy.visitor'])->group(function (): void {
         Route::post('workflow/ic-batches', [ScholarshipWorkflowController::class, 'icBatch'])->middleware('can:workflow.action')->name('workflow.ic-batches.store');
         Route::post('workflow/payment-batches', [ScholarshipWorkflowController::class, 'paymentBatch'])->middleware('can:workflow.action')->name('workflow.payment-batches.store');
         Route::post('workflow/applications/{application}/payment-result', [ScholarshipWorkflowController::class, 'paymentResult'])->middleware('can:workflow.action')->name('workflow.payment-result');
+    });
+
+    Route::middleware('can:users.view')->group(function (): void {
+        Route::get('users', [UserManagementController::class, 'index'])->name('users.index');
+        Route::get('users/export', [UserManagementController::class, 'export'])->name('users.export');
+    });
+    Route::middleware('can:users.create')->group(function (): void {
+        Route::get('users/create', [UserManagementController::class, 'create'])->name('users.create');
+        Route::post('users', [UserManagementController::class, 'store'])->name('users.store');
+    });
+    Route::middleware('can:users.update')->group(function (): void {
+        Route::get('users/{user}/edit', [UserManagementController::class, 'edit'])->name('users.edit');
+        Route::put('users/{user}', [UserManagementController::class, 'update'])->name('users.update');
+        Route::patch('users/{user}/toggle', [UserManagementController::class, 'toggle'])->name('users.toggle');
     });
 
     Route::get('reports', [ScholarshipReportController::class, 'index'])->middleware('can:reports.view')->name('reports.index');

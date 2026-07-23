@@ -332,7 +332,7 @@ final class ScholarshipViewModelService
         ];
 
         if (filled($verification['phadbookfile'] ?? null)) {
-            $fields[] = $this->field('Phad Book', 'Stored in legacy S3/local uploads: '.$verification['phadbookfile']);
+            $fields[] = $this->field('Phad Book', (string) $verification['phadbookfile']);
         }
 
         return $fields;

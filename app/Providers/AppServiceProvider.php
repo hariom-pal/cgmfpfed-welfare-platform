@@ -15,8 +15,10 @@ use App\Domains\Scholarship\Contracts\ScholarshipServiceInterface;
 use App\Domains\Scholarship\Repositories\ScholarshipRepository;
 use App\Domains\Scholarship\Services\ScholarshipService;
 use App\Models\ScholarshipApplication;
+use App\Models\User;
 use App\Policies\MasterPolicy;
 use App\Policies\ScholarshipApplicationPolicy;
+use App\Policies\UserPolicy;
 use App\Services\CscBridgeWalletService;
 use App\Services\CscConnectService;
 use App\Services\HealthCheckService;
@@ -73,6 +75,7 @@ class AppServiceProvider extends ServiceProvider
         Paginator::useBootstrapFive();
 
         Gate::policy(ScholarshipApplication::class, ScholarshipApplicationPolicy::class);
+        Gate::policy(User::class, UserPolicy::class);
 
         foreach (config('masters', []) as $master) {
             Gate::policy($master['model'], MasterPolicy::class);

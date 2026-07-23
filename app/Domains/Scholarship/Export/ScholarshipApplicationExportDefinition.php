@@ -7,21 +7,11 @@ namespace App\Domains\Scholarship\Export;
 use App\Contracts\Services\ExportDefinitionInterface;
 use App\Models\ScholarshipApplication;
 use App\Models\ScholarshipWorkflowTransition;
-use App\Models\User;
 use App\Services\RoleService;
 use Illuminate\Support\Str;
 
 final class ScholarshipApplicationExportDefinition implements ExportDefinitionInterface
 {
-    /**
-     * Per-export memoization of legacy CSC ID -> resolved Laravel user, keyed by
-     * legacy_added_by. Avoids re-querying `users` for every row of a large export when the
-     * same unlinked VLE (or the same unresolved CSC ID) recurs across many applications.
-     *
-     * @var array<string, User|null>
-     */
-    private array $resolvedVleUsers = [];
-
     public function __construct(private readonly RoleService $roles) {}
 
     public function module(): string
@@ -49,13 +39,10 @@ final class ScholarshipApplicationExportDefinition implements ExportDefinitionIn
             'is_draft' => 'Draft?',
 
             // VLE Details
-            'legacy_added_by' => 'Added By (Legacy CSC ID)',
-            'vle_name' => 'VLE Name',
-            'csc_id' => 'CSC ID',
-            'linked_laravel_user' => 'Linked Laravel User',
+            'legacy_added_by' => 'Added By (CSC ID)',
 
             // Workflow Details
-            'current_role' => 'Current Role',
+            'current_role' => 'Current Stage',
             'last_action_role' => 'Last Action Role',
             'last_action_by' => 'Last Action By',
             'last_action_date' => 'Last Action Date',
@@ -93,7 +80,6 @@ final class ScholarshipApplicationExportDefinition implements ExportDefinitionIn
      */
     private function resolveApplicationRow(ScholarshipApplication $application): array
     {
-        $vleUser = $this->resolveVleUser($application);
         $lastAction = $application->latestWorkflowTransition ?? $application->latestAudit;
         $lastActionRole = $lastAction instanceof ScholarshipWorkflowTransition
             ? ($lastAction->acted_by_role ?: null)
@@ -111,10 +97,7 @@ final class ScholarshipApplicationExportDefinition implements ExportDefinitionIn
             'payment_status' => $application->payment_status,
             'is_draft' => $application->is_draft ? 'Yes' : 'No',
 
-            'legacy_added_by' => $application->legacy_added_by,
-            'vle_name' => $vleUser?->name,
-            'csc_id' => $application->legacy_added_by ?? $vleUser?->csc_id,
-            'linked_laravel_user' => $vleUser?->name,
+            'legacy_added_by' => $application->legacy_added_by ?? $application->applicant?->csc_id,
 
             'current_role' => Str::of(str_replace('_', ' ', $application->workflow_stage?->value ?? ''))->title()->toString(),
             'last_action_role' => $lastActionRole,
@@ -135,22 +118,5 @@ final class ScholarshipApplicationExportDefinition implements ExportDefinitionIn
             'created_at' => $application->created_at?->format('Y-m-d H:i:s'),
             'updated_at' => $application->updated_at?->format('Y-m-d H:i:s'),
         ];
-    }
-
-    private function resolveVleUser(ScholarshipApplication $application): ?User
-    {
-        if ($application->applicant_user_id !== null) {
-            return $application->resolveLegacyVleUser();
-        }
-
-        if ($application->legacy_added_by === null || $application->legacy_added_by === '') {
-            return null;
-        }
-
-        if (! array_key_exists($application->legacy_added_by, $this->resolvedVleUsers)) {
-            $this->resolvedVleUsers[$application->legacy_added_by] = $application->resolveLegacyVleUser();
-        }
-
-        return $this->resolvedVleUsers[$application->legacy_added_by];
     }
 }
