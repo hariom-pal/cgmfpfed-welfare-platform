@@ -39,13 +39,13 @@
         @foreach($cards as $card)
             <div class="col-sm-6 col-xl-3">
                 @php
-                    $href = $card['route'] ? route('masters.index', $card['route']) : '#';
+                    $href = $card['href'] ?? (($card['route'] ?? null) ? route('masters.index', $card['route']) : null);
                 @endphp
-                <a class="text-decoration-none text-reset" href="{{ $href }}" @if(!$card['route']) aria-disabled="true" @endif>
+                <a class="text-decoration-none text-reset" href="{{ $href ?? '#' }}" @if(!$href) aria-disabled="true" @endif>
                     <div class="app-card stat-card p-3 h-100">
                         <div class="text-muted small">{{ $card['label'] }}</div>
                         <div class="display-6 fw-semibold">{{ $card['value'] }}</div>
-                        <div class="small text-{{ $card['color'] }}">{{ $card['route'] ? 'Open master' : 'Coming soon' }}</div>
+                        <div class="small text-{{ $card['color'] }}">{{ $href ? 'View list' : 'Coming soon' }}</div>
                         <i class="icon fa-solid {{ $card['icon'] }} text-{{ $card['color'] }}"></i>
                     </div>
                 </a>

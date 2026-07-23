@@ -110,6 +110,9 @@ class ScholarshipApplication extends Model
         'updated_by',
     ];
 
+    /**
+     * @return BelongsTo<AcademicSession, $this>
+     */
     public function academicSession(): BelongsTo
     {
         return $this->belongsTo(AcademicSession::class);
@@ -120,6 +123,9 @@ class ScholarshipApplication extends Model
         return $this->belongsTo(AcademicSession::class, 'scholarship_session_id');
     }
 
+    /**
+     * @return BelongsTo<Scheme, $this>
+     */
     public function scheme(): BelongsTo
     {
         return $this->belongsTo(Scheme::class);
@@ -130,16 +136,25 @@ class ScholarshipApplication extends Model
         return $this->belongsTo(District::class);
     }
 
+    /**
+     * @return BelongsTo<DistrictUnion, $this>
+     */
     public function districtUnion(): BelongsTo
     {
         return $this->belongsTo(DistrictUnion::class);
     }
 
+    /**
+     * @return BelongsTo<Samiti, $this>
+     */
     public function samiti(): BelongsTo
     {
         return $this->belongsTo(Samiti::class);
     }
 
+    /**
+     * @return BelongsTo<Phad, $this>
+     */
     public function phad(): BelongsTo
     {
         return $this->belongsTo(Phad::class);
@@ -209,6 +224,9 @@ class ScholarshipApplication extends Model
         return $this->hasMany(ScholarshipWorkflowTransition::class);
     }
 
+    /**
+     * @return HasOne<ScholarshipWorkflowTransition, $this>
+     */
     public function latestWorkflowTransition(): HasOne
     {
         return $this->hasOne(ScholarshipWorkflowTransition::class)

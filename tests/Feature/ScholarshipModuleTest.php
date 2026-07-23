@@ -19,6 +19,7 @@ use App\Models\Scheme;
 use App\Models\ScholarshipApplication;
 use App\Models\ScholarshipApplicationDocument;
 use App\Models\User;
+use App\Services\Export\ExportTemplateService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -583,6 +584,180 @@ final class ScholarshipModuleTest extends TestCase
         ]));
         $pageTwo->assertOk();
         $pageTwo->assertSee('Showing 21 to 25 of 25 records');
+    }
+
+    public function test_pending_at_vle_includes_legacy_imported_drafts_with_mismatched_workflow_state(): void
+    {
+        // The workflow-redesign migration backfills `workflow_state` for legacy-imported
+        // rows purely from the legacy `status` code, ignoring `is_draft`/`payment_txn_status`
+        // (see database/migrations/2026_07_22_150000_redesign_application_workflow_database.php).
+        // A genuine unpaid VLE draft (legacy payment_txn_status='0') can therefore end up with
+        // workflow_state='pending_samiti'. "Pending at VLE" must still find it via
+        // application_state, which the same backfill derives correctly from is_draft/wallet
+        // state regardless of the legacy status code.
+        $vle = $this->userWithPermissions((int) config('csc.vle_role_id'));
+        $scheme = Scheme::factory()->create(['id' => 1, 'code' => 'SCH1', 'name' => 'Class Scholarship']);
+        $session = AcademicSession::factory()->create(['name' => '2026-27']);
+
+        $legacyDraft = ScholarshipApplication::factory()->create([
+            'application_number' => 'SCH-LEGACY-DRAFT',
+            'applicant_user_id' => $vle->id,
+            'scheme_id' => $scheme->id,
+            'academic_session_id' => $session->id,
+            'application_state' => ApplicationState::Created->value,
+            'workflow_state' => WorkflowState::PendingSamiti->value,
+            'is_draft' => true,
+        ]);
+
+        $this->get(route('applications.index', ['scheme' => $scheme->id, 'academic_session_id' => $session->id, 'status' => 'pending_vle']))
+            ->assertOk()
+            ->assertSee($legacyDraft->application_number);
+    }
+
+    public function test_last_action_role_filter_falls_back_to_legacy_audit_history(): void
+    {
+        // `CompleteLegacyDataMigrationSeeder::migrateAudits()` only writes
+        // `scholarship_application_audits`, never `scholarship_workflow_transitions` — so for
+        // every legacy-imported application the transitions table is empty and the filter must
+        // fall back to the audit trail's actor role.
+        $admin = $this->userWithPermissions(1);
+        $scheme = Scheme::factory()->create(['id' => 1, 'code' => 'SCH1', 'name' => 'Class Scholarship']);
+        $session = AcademicSession::factory()->create(['name' => '2026-27']);
+        $samitiUser = $this->userWithPermissions(3);
+        $this->actingAs($admin);
+
+        $legacyApplication = ScholarshipApplication::factory()->submitted()->create([
+            'application_number' => 'SCH-AUDIT-ONLY',
+            'scheme_id' => $scheme->id,
+            'academic_session_id' => $session->id,
+            'status' => ScholarshipApplicationStatus::RecommendedBySamiti->value,
+        ]);
+        DB::table('scholarship_application_audits')->insert([
+            'scholarship_application_id' => $legacyApplication->id,
+            'from_status' => 0,
+            'to_status' => ScholarshipApplicationStatus::RecommendedBySamiti->value,
+            'action' => 'legacy_status_migrated',
+            'stage' => 'samiti',
+            'acted_by' => $samitiUser->id,
+            'acted_at' => now()->subDay(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $otherApplication = ScholarshipApplication::factory()->submitted()->create([
+            'application_number' => 'SCH-AUDIT-OTHER',
+            'scheme_id' => $scheme->id,
+            'academic_session_id' => $session->id,
+            'status' => ScholarshipApplicationStatus::RecommendedByIC->value,
+        ]);
+
+        $this->get(route('applications.index', ['scheme' => $scheme->id, 'academic_session_id' => $session->id, 'last_action_role' => 'Samiti']))
+            ->assertOk()
+            ->assertSee($legacyApplication->application_number)
+            ->assertDontSee($otherApplication->application_number);
+    }
+
+    public function test_dashboard_cards_link_to_correctly_filtered_application_lists(): void
+    {
+        $this->userWithPermissions(1);
+        $scheme = Scheme::factory()->create(['id' => 1, 'code' => 'SCH1', 'name' => 'Class Scholarship']);
+        $session = AcademicSession::factory()->create(['name' => '2026-27']);
+
+        $rejected = ScholarshipApplication::factory()->submitted()->create([
+            'application_number' => 'SCH-DASH-REJECTED',
+            'scheme_id' => $scheme->id,
+            'academic_session_id' => $session->id,
+            'status' => ScholarshipApplicationStatus::RejectedBySamiti->value,
+        ]);
+
+        $response = $this->get(route('dashboard', ['scheme' => $scheme->id, 'academic_session_id' => $session->id]));
+        $response->assertOk();
+
+        $expectedHref = route('applications.index', ['scheme' => $scheme->id, 'academic_session_id' => $session->id, 'status' => 'rejected']);
+        $response->assertSee(htmlspecialchars($expectedHref), false);
+
+        $this->get($expectedHref)->assertOk()->assertSee($rejected->application_number);
+    }
+
+    public function test_csv_export_streams_only_filtered_applications(): void
+    {
+        $this->userWithPermissions(1);
+        $scheme = Scheme::factory()->create(['id' => 1, 'code' => 'SCH1', 'name' => 'Class Scholarship']);
+        $session = AcademicSession::factory()->create(['name' => '2026-27']);
+
+        $included = ScholarshipApplication::factory()->submitted()->create([
+            'application_number' => 'SCH-CSV-INCLUDED',
+            'student_name' => 'Included Student',
+            'scheme_id' => $scheme->id,
+            'academic_session_id' => $session->id,
+            'status' => ScholarshipApplicationStatus::RecommendedBySamiti->value,
+        ]);
+        $excluded = ScholarshipApplication::factory()->submitted()->create([
+            'application_number' => 'SCH-CSV-EXCLUDED',
+            'student_name' => 'Excluded Student',
+            'scheme_id' => $scheme->id,
+            'academic_session_id' => $session->id,
+            'status' => ScholarshipApplicationStatus::PaymentCompleted->value,
+        ]);
+
+        $response = $this->get(route('applications.export', [
+            'scheme' => $scheme->id,
+            'academic_session_id' => $session->id,
+            'status' => 'pending',
+        ]));
+
+        $response->assertOk();
+        $response->assertHeader('content-type', 'text/csv; charset=UTF-8');
+
+        $csv = $response->streamedContent();
+
+        $this->assertStringContainsString('Application Number', $csv);
+        $this->assertStringContainsString($included->application_number, $csv);
+        $this->assertStringNotContainsString($excluded->application_number, $csv);
+    }
+
+    public function test_csv_export_configuration_can_hide_and_reorder_columns_and_export_reflects_it(): void
+    {
+        $this->userWithPermissions(1);
+        $scheme = Scheme::factory()->create(['id' => 1, 'code' => 'SCH1', 'name' => 'Class Scholarship']);
+        $session = AcademicSession::factory()->create(['name' => '2026-27']);
+
+        ScholarshipApplication::factory()->submitted()->create([
+            'application_number' => 'SCH-CFG-1',
+            'scheme_id' => $scheme->id,
+            'academic_session_id' => $session->id,
+            'status' => ScholarshipApplicationStatus::RecommendedBySamiti->value,
+        ]);
+
+        $this->get(route('export-templates.index'))->assertOk()->assertSee('Scholarship Applications');
+        $this->get(route('export-templates.edit', 'scholarship_applications'))->assertOk()->assertSee('application_number');
+
+        $fields = app(ExportTemplateService::class)->fieldsFor('scholarship_applications');
+        $payload = [];
+        foreach ($fields as $field) {
+            $entry = [
+                'field_name' => $field['field_name'],
+                'display_name' => $field['display_name'],
+            ];
+            if ($field['field_name'] !== 'mobile') {
+                $entry['is_visible'] = '1';
+            }
+            $payload[] = $entry;
+        }
+
+        $this->put(route('export-templates.update', 'scholarship_applications'), ['fields' => $payload])
+            ->assertRedirect(route('export-templates.edit', 'scholarship_applications'));
+
+        $response = $this->get(route('applications.export', [
+            'scheme' => $scheme->id,
+            'academic_session_id' => $session->id,
+            'status' => 'pending',
+        ]));
+
+        $header = strtok($response->streamedContent(), "\n");
+        $this->assertIsString($header);
+        $this->assertStringNotContainsString('Mobile', $header);
+        $this->assertStringContainsString('Application Number', $header);
     }
 
     public function test_lifecycle_factories_use_normalized_enums(): void

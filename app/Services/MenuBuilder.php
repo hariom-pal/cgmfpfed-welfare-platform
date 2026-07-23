@@ -82,6 +82,17 @@ final class MenuBuilder
             $items[] = $this->disabledItem('User Management', 'fa-solid fa-users-gear');
         }
 
+        if ($this->permissions->can($user, 'masters.manage')) {
+            $items[] = [
+                'label' => 'Administration',
+                'icon' => 'fa-solid fa-user-shield',
+                'active' => ['export-templates.*'],
+                'children' => [
+                    $this->routeItem('CSV Export Configuration', 'export-templates.index', 'fa-regular fa-circle', ['export-templates.*']),
+                ],
+            ];
+        }
+
         $otherModules = [];
         if ($this->permissions->has($user, 38)) {
             $otherModules[] = $this->routeItem('Workflow Batches', 'workflow.index', 'fa-regular fa-circle');

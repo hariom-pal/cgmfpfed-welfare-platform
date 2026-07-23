@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\ComingSoonController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\ExportTemplateController;
 use App\Http\Controllers\MasterController;
 use App\Http\Controllers\ScholarshipController;
 use App\Http\Controllers\ScholarshipDocumentController;
@@ -35,8 +36,15 @@ Route::middleware(['auth', 'legacy.visitor'])->group(function (): void {
         Route::patch('masters/{masterKey}/{uuid}/toggle', [MasterController::class, 'toggle'])->name('masters.toggle');
     });
 
+    Route::middleware('can:masters.manage')->prefix('administration/csv-export-configuration')->name('export-templates.')->group(function (): void {
+        Route::get('/', [ExportTemplateController::class, 'index'])->name('index');
+        Route::get('{module}', [ExportTemplateController::class, 'edit'])->name('edit');
+        Route::put('{module}', [ExportTemplateController::class, 'update'])->name('update');
+    });
+
     Route::middleware('can:applications.view')->group(function (): void {
         Route::get('applications', [ScholarshipController::class, 'index'])->name('applications.index');
+        Route::get('applications/export', [ScholarshipController::class, 'export'])->name('applications.export');
     });
 
     Route::middleware('can:applications.create')->group(function (): void {

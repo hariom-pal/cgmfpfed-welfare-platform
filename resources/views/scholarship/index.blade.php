@@ -6,6 +6,7 @@
     'rejected' => 'Rejected',
     'completed' => 'Completed',
     'payment_failed' => 'Payment Failed',
+    'recommended' => 'Recommended',
 ])
 @php($currentStatus = $filters['status'] ?? null)
 @php($currentStatusLabel = $statusLabels[$currentStatus] ?? null)
@@ -28,6 +29,9 @@
 
     <x-card title="Applications" icon="fa-regular fa-file-lines">
         <x-slot:tools>
+            <a class="btn btn-outline-secondary" href="{{ route('applications.export', $filters) }}">
+                <i class="fa-solid fa-file-csv me-1"></i>Download CSV
+            </a>
             @can('create', \App\Models\ScholarshipApplication::class)
                 <a class="btn btn-primary" href="{{ route('applications.create.scheme', $selectedScheme) }}">
                     <i class="fa-solid fa-plus me-1"></i>New Application

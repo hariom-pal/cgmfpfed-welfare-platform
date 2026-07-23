@@ -13,6 +13,7 @@ use App\Models\Samiti;
 use App\Models\Scheme;
 use App\Models\ScholarshipApplication;
 use App\Models\ScholarshipWalletTransaction;
+use App\Services\Export\CsvExportService;
 use App\Services\RoleService;
 use App\Services\ScholarshipSessionService;
 use App\Services\ScholarshipViewModelService;
@@ -24,13 +25,14 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ScholarshipController extends Controller
 {
     /**
      * @var list<string>
      */
-    private const STATUS_MENU_FILTERS = ['pending', 'pending_vle', 'rejected', 'completed', 'payment_failed'];
+    private const STATUS_MENU_FILTERS = ['pending', 'pending_vle', 'rejected', 'completed', 'payment_failed', 'recommended'];
 
     public function __construct(
         private readonly ScholarshipRepositoryInterface $applications,
@@ -64,6 +66,18 @@ class ScholarshipController extends Controller
             'selectedScheme' => Scheme::query()->find($filters['scheme_id']),
             'breadcrumbs' => ['Operations' => null, 'Applications' => null],
         ]);
+    }
+
+    public function export(Request $request, CsvExportService $csvExport): StreamedResponse
+    {
+        Gate::authorize('viewAny', ScholarshipApplication::class);
+
+        $filters = $this->applicationFilters($request);
+        abort_unless(isset($filters['scheme_id']), 422, 'Select a scheme before exporting.');
+
+        $query = $this->applications->filteredQueryFor($request->user(), $filters);
+
+        return $csvExport->stream('scholarship_applications', $query);
     }
 
     public function create(): View
