@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Models\Circle;
+use App\Models\District;
 use App\Models\DistrictUnion;
 use App\Models\Samiti;
 use App\Models\User;
@@ -14,12 +15,22 @@ use Illuminate\Support\Facades\Hash;
 
 /**
  * Internal staff account management (Super Admin, District Union, Samiti, Investigation
- * Committee, Circle). VLE/CSC portal accounts are a separate, self-service identity system
- * (JIT-provisioned on CSC Connect login) and are intentionally excluded here, along with
- * Super Admin, matching the legacy CI3 "manageuser" screen which never lists or edits either.
+ * Committee, Circle, Account). VLE/CSC portal accounts are a separate, self-service identity
+ * system (JIT-provisioned on CSC Connect login) and are intentionally excluded here, along
+ * with Super Admin, matching the legacy CI3 "manageuser" screen which never lists or edits
+ * either.
  */
 final class UserManagementService
 {
+    /**
+     * The internal staff roles assignable via this screen — everything in `user_type`
+     * except Super Admin (1, legacy excludes it from add_user/manageuser entirely) and VLE
+     * (a separate, self-service identity, not part of legacy's `user_type`-scoped staff model).
+     *
+     * @var list<int>
+     */
+    public const ASSIGNABLE_ROLES = [2, 3, 4, 5, 6];
+
     /**
      * @param  array<string, mixed>  $filters
      */
@@ -101,10 +112,13 @@ final class UserManagementService
     }
 
     /**
-     * Reconciles the chosen normalized master records (District Union / Samiti / Circle)
-     * onto both the modern FK columns and the legacy scalar columns (`districtunion`,
-     * `samiti`, `circle`) that DataScopeService/PermissionService still read for row-level
-     * visibility scoping — reusing that existing scoping mechanism rather than changing it.
+     * Reconciles the chosen normalized master records (District / District Union / Samiti /
+     * Circle) onto both the modern FK columns and the legacy scalar columns (`district`,
+     * `districtunion`, `samiti`, `circle`) that DataScopeService/PermissionService still read
+     * for row-level visibility scoping — reusing that existing scoping mechanism rather than
+     * changing it. Matches the legacy add_user/edit_user form exactly: District drives the
+     * District Union list for every role except Circle (5), which uses Circle instead; Samiti
+     * only applies to role 3.
      *
      * @param  array<string, mixed>  $data
      * @return array<string, mixed>
@@ -113,6 +127,7 @@ final class UserManagementService
     {
         $userType = (int) ($data['user_type'] ?? 0);
         $attributes = [
+            'district' => null,
             'district_union_master_id' => null,
             'districtunion' => 0,
             'samiti_master_id' => null,
@@ -120,6 +135,13 @@ final class UserManagementService
             'circle_master_id' => null,
             'circle' => null,
         ];
+
+        if ($userType !== 5 && filled($data['district_id'] ?? null)) {
+            $district = District::query()->find($data['district_id']);
+            if ($district instanceof District) {
+                $attributes['district'] = $district->legacy_code !== null ? (int) $district->legacy_code : null;
+            }
+        }
 
         if (filled($data['district_union_id'] ?? null)) {
             $districtUnion = DistrictUnion::query()->find($data['district_union_id']);

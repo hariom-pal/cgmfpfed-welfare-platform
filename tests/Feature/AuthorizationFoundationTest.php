@@ -38,8 +38,9 @@ final class AuthorizationFoundationTest extends TestCase
 
         $this->assertContains('Scholarship Applications', $labels);
         $this->assertContains('Add Application', $scholarshipChildren);
-        $this->assertNotContains('Payment', $labels);
         $this->assertNotContains('Settings', $labels);
+        $this->assertNotContains('User Management', $labels);
+        $this->assertNotContains('Workflow Batches', $labels);
 
         $this->actingAs($vle);
         $this->get(route('dashboard'))->assertOk();
@@ -56,17 +57,19 @@ final class AuthorizationFoundationTest extends TestCase
         $masterChildren = collect($menu->firstWhere('label', 'Masters')['children'] ?? [])->pluck('label')->all();
         $scholarshipChildren = collect($menu->firstWhere('label', 'Scholarship Applications')['children'] ?? [])->pluck('label')->all();
         $beemaChildren = collect($menu->firstWhere('label', 'Beema')['children'] ?? [])->pluck('label')->all();
-        $otherChildren = collect($menu->firstWhere('label', 'Other Modules')['children'] ?? [])->pluck('label')->all();
 
         $this->assertSame('Dashboard', $labels[0]);
-        $this->assertSame('Masters', $labels[1]);
-        $this->assertSame(['Dashboard', 'Masters', 'Scholarship Applications', 'Beema', 'Reports', 'User Management', 'Settings', 'Other Modules'], $labels);
+        $this->assertSame('User Management', $labels[1]);
+        $this->assertSame(['Dashboard', 'User Management', 'Masters', 'Scholarship Applications', 'Beema', 'Reports', 'Workflow Batches', 'Settings'], $labels);
         $this->assertContains('Scholarship Applications', $labels);
         $this->assertContains('Beema', $labels);
         $this->assertContains('Reports', $labels);
         $this->assertContains('User Management', $labels);
         $this->assertContains('Settings', $labels);
-        $this->assertContains('Other Modules', $labels);
+        $this->assertContains('Workflow Batches', $labels);
+        $this->assertNotContains('Other Modules', $labels);
+        $this->assertNotContains('Payment', $labels);
+        $this->assertSame(route('workflow.index'), $menu->firstWhere('label', 'Workflow Batches')['url']);
 
         $settingsChildren = collect($menu->firstWhere('label', 'Settings')['children'] ?? [])->pluck('label')->all();
         $this->assertContains('CSV Export Configuration', $settingsChildren);
@@ -77,8 +80,6 @@ final class AuthorizationFoundationTest extends TestCase
         );
         $this->assertNotContains('Masters', $scholarshipChildren);
         $this->assertNotContains('Masters', $beemaChildren);
-        $this->assertContains('Workflow Batches', $otherChildren);
-        $this->assertContains('Payment', $otherChildren);
     }
 
     public function test_scholarship_menu_contains_status_filtered_views(): void
@@ -151,6 +152,45 @@ final class AuthorizationFoundationTest extends TestCase
         $this->assertTrue($scope->canViewScholarshipApplication($du, $owned));
         $this->assertTrue($scope->canViewScholarshipApplication($du, $paired));
         $this->assertFalse($scope->canViewScholarshipApplication($du, $hidden));
+    }
+
+    public function test_account_role_menu_and_ability_access(): void
+    {
+        $account = $this->legacyUser(6);
+        $this->grant($account, [38]);
+
+        $labels = collect(app(MenuBuilder::class)->buildFor($account))->pluck('label')->all();
+        $this->assertContains('Workflow Batches', $labels);
+        $this->assertContains('Scholarship Applications', $labels);
+        $this->assertNotContains('User Management', $labels);
+        $this->assertNotContains('Masters', $labels);
+        $this->assertNotContains('Settings', $labels);
+
+        $this->assertTrue(app(PermissionService::class)->can($account, 'workflow.view'));
+        $this->assertTrue(app(PermissionService::class)->can($account, 'workflow.action'));
+        $this->assertTrue(app(PermissionService::class)->can($account, 'applications.view'));
+        $this->assertFalse(app(PermissionService::class)->can($account, 'masters.manage'));
+    }
+
+    public function test_account_role_is_scoped_to_the_finance_workflow_stage(): void
+    {
+        $session = AcademicSession::factory()->create();
+        $scheme = Scheme::factory()->create();
+        $account = $this->legacyUser(6);
+
+        $financeStage = $this->application($session->id, $scheme->id, [
+            'workflow_stage' => 'accounts',
+            'status' => 15,
+        ]);
+        $samitiStage = $this->application($session->id, $scheme->id, [
+            'workflow_stage' => 'samiti',
+            'status' => 0,
+        ]);
+
+        $scope = app(DataScopeService::class);
+
+        $this->assertTrue($scope->canViewScholarshipApplication($account, $financeStage));
+        $this->assertFalse($scope->canViewScholarshipApplication($account, $samitiStage));
     }
 
     /**

@@ -1,5 +1,6 @@
 @php
     $selectedRole = old('user_type', $record->user_type ?? '');
+    $selectedDistrictId = old('district_id', $record?->districtUnionMaster?->district_id ?? '');
 @endphp
 
 <div class="row g-3">
@@ -23,8 +24,8 @@
             <label class="form-label" for="user_type">Role</label>
             <select id="user_type" name="user_type" class="form-select @error('user_type') is-invalid @enderror" required>
                 <option value="">Select a role</option>
-                @foreach($roles as $role)
-                    <option value="{{ $role->id }}" data-role="{{ $role->id }}" @selected((string) $selectedRole === (string) $role->id)>{{ $role->type }}</option>
+                @foreach($roles as $id => $label)
+                    <option value="{{ $id }}" @selected((string) $selectedRole === (string) $id)>{{ $label }}</option>
                 @endforeach
             </select>
             @error('user_type')<div class="invalid-feedback">{{ $message }}</div>@enderror
@@ -44,7 +45,7 @@
         </div>
         <div class="col-md-4">
             <label class="form-label">Role</label>
-            <input class="form-control" value="{{ $record->role?->type }}" disabled>
+            <input class="form-control" value="{{ app(\App\Services\RoleService::class)->name($record) }}" disabled>
         </div>
     @endif
 
@@ -55,6 +56,17 @@
             <option value="0" @selected((string) old('status', $record->status ?? '1') === '0')>Inactive</option>
         </select>
         @error('status')<div class="invalid-feedback">{{ $message }}</div>@enderror
+    </div>
+
+    <div class="col-md-4" id="district-field">
+        <label class="form-label" for="district_id">District</label>
+        <select id="district_id" name="district_id" class="form-select @error('district_id') is-invalid @enderror">
+            <option value="">Select a District</option>
+            @foreach($districts as $district)
+                <option value="{{ $district->id }}" @selected((string) $selectedDistrictId === (string) $district->id)>{{ $district->name }}</option>
+            @endforeach
+        </select>
+        @error('district_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
     </div>
 
     <div class="col-md-4" id="circle-field" style="display:none">
@@ -73,7 +85,12 @@
         <select id="district_union_id" name="district_union_id" class="form-select @error('district_union_id') is-invalid @enderror" required>
             <option value="">Select a District Union</option>
             @foreach($districtUnions as $districtUnion)
-                <option value="{{ $districtUnion->id }}" data-circle-id="{{ $districtUnion->circle_id }}" @selected((string) old('district_union_id', $record->district_union_master_id ?? '') === (string) $districtUnion->id)>{{ $districtUnion->name }}</option>
+                <option
+                    value="{{ $districtUnion->id }}"
+                    data-district-id="{{ $districtUnion->district_id }}"
+                    data-circle-id="{{ $districtUnion->circle_id }}"
+                    @selected((string) old('district_union_id', $record->district_union_master_id ?? '') === (string) $districtUnion->id)
+                >{{ $districtUnion->name }}</option>
             @endforeach
         </select>
         @error('district_union_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
@@ -111,8 +128,10 @@
     <script>
         (() => {
             const roleSelect = document.getElementById('user_type');
+            const districtField = document.getElementById('district-field');
             const circleField = document.getElementById('circle-field');
             const samitiField = document.getElementById('samiti-field');
+            const districtSelect = document.getElementById('district_id');
             const circleSelect = document.getElementById('circle_id');
             const districtUnionSelect = document.getElementById('district_union_id');
             const samitiSelect = document.getElementById('samiti_id');
@@ -127,9 +146,22 @@
                 });
             };
 
+            const filterDistrictUnions = () => {
+                if (circleField.style.display !== 'none') {
+                    filterOptions(districtUnionSelect, 'circleId', circleSelect.value);
+                } else {
+                    filterOptions(districtUnionSelect, 'districtId', districtSelect.value);
+                }
+            };
+
+            // Legacy add_user/edit_user: District drives the District Union list for every
+            // role except Circle (5), which uses Circle instead; Samiti only applies to role 3.
             const applyRoleVisibility = (role) => {
                 const isSamiti = String(role) === String(ROLE_SAMITI);
                 const isCircle = String(role) === String(ROLE_CIRCLE);
+
+                districtField.style.display = isCircle ? 'none' : '';
+                districtSelect.required = !isCircle;
 
                 circleField.style.display = isCircle ? '' : 'none';
                 circleSelect.required = isCircle;
@@ -137,7 +169,7 @@
                 samitiField.style.display = isSamiti ? '' : 'none';
                 samitiSelect.required = isSamiti;
 
-                filterOptions(districtUnionSelect, 'circleId', isCircle ? circleSelect.value : '');
+                filterDistrictUnions();
             };
 
             if (roleSelect) {
@@ -147,7 +179,8 @@
                 applyRoleVisibility('{{ $record->user_type ?? '' }}');
             }
 
-            circleSelect?.addEventListener('change', () => filterOptions(districtUnionSelect, 'circleId', circleSelect.value));
+            districtSelect?.addEventListener('change', filterDistrictUnions);
+            circleSelect?.addEventListener('change', filterDistrictUnions);
 
             districtUnionSelect?.addEventListener('change', () => filterOptions(samitiSelect, 'districtUnionId', districtUnionSelect.value));
             if (samitiField.style.display !== 'none') {

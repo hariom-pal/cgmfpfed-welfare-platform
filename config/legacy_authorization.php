@@ -9,6 +9,7 @@ return [
         3 => 'Samiti',
         4 => 'Investigation Commitee',
         5 => 'Circle',
+        6 => 'Account',
         'VLE' => 'VLE',
     ],
 
@@ -51,13 +52,13 @@ return [
 
     'abilities' => [
         'dashboard.view' => ['roles' => '*'],
-        'applications.view' => ['roles' => [1, 2, 3, 4, 5, 'VLE']],
+        'applications.view' => ['roles' => [1, 2, 3, 4, 5, 6, 'VLE']],
         'applications.create' => ['roles' => ['VLE']],
         'applications.update' => ['roles' => ['VLE']],
-        'applications.submit' => ['roles' => [1, 2, 3, 4, 5, 'VLE']],
-        'applications.documents.view' => ['roles' => [1, 2, 3, 4, 5, 'VLE']],
-        'workflow.view' => ['roles' => [1, 2, 3, 4, 5], 'permissions' => [6, 20, 21, 27, 28, 38]],
-        'workflow.action' => ['roles' => [1, 2, 3, 4, 5], 'permissions' => [6, 20, 21, 27, 28, 38]],
+        'applications.submit' => ['roles' => [1, 2, 3, 4, 5, 6, 'VLE']],
+        'applications.documents.view' => ['roles' => [1, 2, 3, 4, 5, 6, 'VLE']],
+        'workflow.view' => ['roles' => [1, 2, 3, 4, 5, 6], 'permissions' => [6, 20, 21, 27, 28, 38]],
+        'workflow.action' => ['roles' => [1, 2, 3, 4, 5, 6], 'permissions' => [6, 20, 21, 27, 28, 38]],
         'reports.view' => ['roles' => [1, 5], 'permissions' => [16, 34, 39]],
         'masters.manage' => ['roles' => [1]],
         'settings.manage' => ['permissions' => [1, 2, 4]],

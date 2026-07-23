@@ -2,7 +2,7 @@
 
 @section('title', 'User Management')
 @section('heading', 'User Management')
-@section('subtitle', 'Manage District Union, Samiti, Investigation Committee and Circle accounts')
+@section('subtitle', 'Manage District Union, Samiti, Investigation Committee, Circle and Account accounts')
 
 @php
     $breadcrumbs = ['User Management' => null];
@@ -34,8 +34,8 @@
                 <label class="form-label" for="user_type">Role</label>
                 <select id="user_type" name="user_type" class="form-select">
                     <option value="">All</option>
-                    @foreach($roles as $role)
-                        <option value="{{ $role->id }}" @selected(($filters['user_type'] ?? '') == $role->id)>{{ $role->type }}</option>
+                    @foreach($roles as $id => $label)
+                        <option value="{{ $id }}" @selected(($filters['user_type'] ?? '') == $id)>{{ $label }}</option>
                     @endforeach
                 </select>
             </div>
@@ -73,7 +73,7 @@
                         <td class="fw-semibold">{{ $record->name }}</td>
                         <td>{{ $record->email }}</td>
                         <td>{{ $record->mobile }}</td>
-                        <td>{{ $record->role?->type }}</td>
+                        <td>{{ app(\App\Services\RoleService::class)->name($record) }}</td>
                         <td>{{ $record->districtUnionMaster?->name ?? $record->circleMaster?->name }}</td>
                         <td>{{ $record->samitiMaster?->name }}</td>
                         <td><x-status-badge :active="$record->status === '1'" /></td>

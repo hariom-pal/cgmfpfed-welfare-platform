@@ -37,7 +37,7 @@ final class MasterManagementTest extends TestCase
         $this->actingAsMasterManager();
 
         $dashboard = $this->get(route('dashboard'))->assertOk()->assertSee('Operational overview');
-        $dashboard->assertSeeInOrder(['Dashboard', 'Masters', 'Scholarship', 'Beema', 'Reports', 'User Management', 'Other Modules']);
+        $dashboard->assertSeeInOrder(['Dashboard', 'User Management', 'Masters', 'Scholarship', 'Beema', 'Reports', 'Settings']);
 
         foreach (config('masters') as $master) {
             $dashboard->assertSee($master['label']);

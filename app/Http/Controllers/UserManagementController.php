@@ -7,15 +7,14 @@ namespace App\Http\Controllers;
 use App\Http\Requests\StoreUserRequest;
 use App\Http\Requests\UpdateUserRequest;
 use App\Models\Circle;
+use App\Models\District;
 use App\Models\DistrictUnion;
 use App\Models\Samiti;
 use App\Models\User;
-use App\Models\UserType;
 use App\Services\Export\CsvExportService;
 use App\Services\UserManagementService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -95,8 +94,9 @@ final class UserManagementController extends Controller
     {
         return [
             'roles' => $this->assignableRoles(),
+            'districts' => District::query()->where('is_active', true)->orderBy('name')->get(['id', 'name']),
             'circles' => Circle::query()->where('is_active', true)->orderBy('name')->get(['id', 'name']),
-            'districtUnions' => DistrictUnion::query()->where('is_active', true)->orderBy('name')->get(['id', 'name', 'circle_id']),
+            'districtUnions' => DistrictUnion::query()->where('is_active', true)->orderBy('name')->get(['id', 'name', 'district_id', 'circle_id']),
             'samitis' => Samiti::query()->where('is_active', true)->orderBy('name')->get(['id', 'name', 'district_union_id']),
             'record' => $user,
             'breadcrumbs' => ['User Management' => route('users.index'), $user ? 'Edit' : 'Create' => null],
@@ -104,10 +104,18 @@ final class UserManagementController extends Controller
     }
 
     /**
-     * @return Collection<int, UserType>
+     * The assignable roles' display labels, sourced from the same config that already drives
+     * RoleService::name() and every other role-label lookup in the app — avoids depending on
+     * the `user_type` lookup table being seeded (it isn't under RefreshDatabase in tests).
+     *
+     * @return array<int, string>
      */
-    private function assignableRoles(): Collection
+    private function assignableRoles(): array
     {
-        return UserType::query()->where('id', '>', 1)->where('id', '!=', (int) config('csc.vle_role_id'))->orderBy('id')->get();
+        $labels = config('legacy_authorization.roles', []);
+
+        return collect(UserManagementService::ASSIGNABLE_ROLES)
+            ->mapWithKeys(fn (int $id): array => [$id => (string) ($labels[$id] ?? $id)])
+            ->all();
     }
 }

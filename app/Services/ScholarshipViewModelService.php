@@ -502,8 +502,12 @@ final class ScholarshipViewModelService
             $labels['passbook'] = 'Student Bank Passbook (Student PHOTO AND BANK DETAILS) / छात्र बैंक पासबुक';
             $labels['admission_receipt'] = 'Admission Receipt / प्रवेश रसीद';
         } else {
+            // Legacy (detail_scholarship.php) renders exactly one passbook slot for schemes 1/2:
+            // `head_passbook`, whose link text happens to read "View Front Page of Passbook" —
+            // that is a link caption, not a second document. A separate `passbook` document_type
+            // is never created for these schemes (Scholarship.php's scheme-1/2 upload branch never
+            // writes it), so adding it here was a phantom slot that always rendered "Not uploaded".
             $labels['head_passbook'] = 'Head of Family Bank Passbook (HEAD OF FAMILY PHOTO AND BANK DETAILS) / परिवार बैंक पासबुक';
-            $labels['passbook'] = 'Front Page of Passbook / पासबुक का प्रथम पृष्ठ';
         }
 
         if ($application->currentDocuments->contains('document_type', 'phadbookfile')) {

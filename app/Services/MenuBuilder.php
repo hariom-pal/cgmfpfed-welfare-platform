@@ -28,6 +28,10 @@ final class MenuBuilder
             $this->routeItem('Dashboard', 'dashboard', 'fa-solid fa-gauge-high'),
         ];
 
+        if ($this->permissions->can($user, 'users.view')) {
+            $items[] = $this->routeItem('User Management', 'users.index', 'fa-solid fa-users-gear', ['users.*']);
+        }
+
         if ($this->permissions->can($user, 'masters.manage')) {
             $items[] = [
                 'label' => 'Masters',
@@ -78,8 +82,8 @@ final class MenuBuilder
             $items[] = $this->routeOrDisabledItem('Reports', 'reports.index', 'fa-solid fa-chart-column');
         }
 
-        if ($this->permissions->can($user, 'users.view')) {
-            $items[] = $this->routeItem('User Management', 'users.index', 'fa-solid fa-users-gear', ['users.*']);
+        if ($this->permissions->has($user, 38)) {
+            $items[] = $this->routeItem('Workflow Batches', 'workflow.index', 'fa-solid fa-layer-group');
         }
 
         if ($this->permissions->can($user, 'masters.manage')) {
@@ -90,31 +94,6 @@ final class MenuBuilder
                 'children' => [
                     $this->routeItem('CSV Export Configuration', 'settings.csv-export-configuration.index', 'fa-regular fa-circle', ['settings.csv-export-configuration.*']),
                 ],
-            ];
-        }
-
-        $otherModules = [];
-        if ($this->permissions->has($user, 38)) {
-            $otherModules[] = $this->routeItem('Workflow Batches', 'workflow.index', 'fa-regular fa-circle');
-        }
-        if ($this->roles->isSuperAdmin($user)) {
-            $otherModules[] = [
-                'label' => 'Payment',
-                'icon' => 'fa-solid fa-building-columns',
-                'active' => ['payment.*'],
-                'children' => [
-                    $this->disabledItem('Pending', 'fa-regular fa-circle'),
-                    $this->disabledItem('Completed', 'fa-regular fa-circle'),
-                    $this->disabledItem('Failed', 'fa-regular fa-circle'),
-                    $this->disabledItem('Upload UTR', 'fa-regular fa-circle'),
-                ],
-            ];
-        }
-        if ($otherModules !== []) {
-            $items[] = [
-                'label' => 'Other Modules',
-                'icon' => 'fa-solid fa-layer-group',
-                'children' => $otherModules,
             ];
         }
 

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature;
 
 use App\Models\Circle;
+use App\Models\District;
 use App\Models\DistrictUnion;
 use App\Models\Samiti;
 use App\Models\User;
@@ -44,13 +45,14 @@ final class UserManagementTest extends TestCase
         $this->get(route('users.create'))->assertOk();
     }
 
-    public function test_creating_a_samiti_user_requires_district_union_and_samiti(): void
+    public function test_creating_a_samiti_user_requires_district_district_union_and_samiti(): void
     {
         $admin = $this->staffUser(1);
         $this->grant($admin, [1, 2]);
         $this->actingAs($admin);
 
-        $districtUnion = DistrictUnion::factory()->create(['legacy_id' => 501]);
+        $district = District::factory()->create(['legacy_code' => '901']);
+        $districtUnion = DistrictUnion::factory()->create(['legacy_id' => 501, 'district_id' => $district->id]);
         $samiti = Samiti::factory()->create(['legacy_id' => 601, 'district_union_id' => $districtUnion->id]);
 
         $response = $this->post(route('users.store'), [
@@ -61,6 +63,7 @@ final class UserManagementTest extends TestCase
             'password' => 'Passw0rd!23',
             'password_confirmation' => 'Passw0rd!23',
             'status' => '1',
+            'district_id' => $district->id,
             'district_union_id' => $districtUnion->id,
             'samiti_id' => $samiti->id,
         ]);
@@ -70,6 +73,7 @@ final class UserManagementTest extends TestCase
         $created = User::where('email', 'samiti.officer@example.test')->first();
         $this->assertNotNull($created);
         $this->assertSame(3, $created->user_type);
+        $this->assertSame(901, $created->district);
         $this->assertSame($districtUnion->id, $created->district_union_master_id);
         $this->assertSame($districtUnion->legacy_id, $created->districtunion);
         $this->assertSame($samiti->id, $created->samiti_master_id);
@@ -78,7 +82,36 @@ final class UserManagementTest extends TestCase
         $this->assertTrue(Hash::check('Passw0rd!23', $created->password));
     }
 
-    public function test_creating_a_circle_user_requires_circle_and_district_union(): void
+    public function test_creating_an_account_user_requires_district_and_district_union(): void
+    {
+        $admin = $this->staffUser(1);
+        $this->grant($admin, [1, 2]);
+        $this->actingAs($admin);
+
+        $district = District::factory()->create(['legacy_code' => '902']);
+        $districtUnion = DistrictUnion::factory()->create(['legacy_id' => 502, 'district_id' => $district->id]);
+
+        $response = $this->post(route('users.store'), [
+            'name' => 'Account Officer',
+            'email' => 'account.officer@example.test',
+            'mobile' => '9876544444',
+            'user_type' => 6,
+            'password' => 'Passw0rd!23',
+            'password_confirmation' => 'Passw0rd!23',
+            'status' => '1',
+            'district_id' => $district->id,
+            'district_union_id' => $districtUnion->id,
+        ]);
+
+        $response->assertRedirect(route('users.index'));
+
+        $created = User::where('email', 'account.officer@example.test')->first();
+        $this->assertNotNull($created);
+        $this->assertSame(6, $created->user_type);
+        $this->assertSame($districtUnion->id, $created->district_union_master_id);
+    }
+
+    public function test_creating_a_circle_user_requires_circle_and_district_union_but_not_district(): void
     {
         $admin = $this->staffUser(1);
         $this->grant($admin, [1, 2]);
@@ -112,6 +145,7 @@ final class UserManagementTest extends TestCase
         $this->assertSame(5, $created->user_type);
         $this->assertSame($circle->id, $created->circle_master_id);
         $this->assertSame($circle->legacy_id, $created->circle);
+        $this->assertNull($created->district);
     }
 
     public function test_creating_a_samiti_user_without_samiti_fails_validation(): void
@@ -120,7 +154,8 @@ final class UserManagementTest extends TestCase
         $this->grant($admin, [1, 2]);
         $this->actingAs($admin);
 
-        $districtUnion = DistrictUnion::factory()->create();
+        $district = District::factory()->create();
+        $districtUnion = DistrictUnion::factory()->create(['district_id' => $district->id]);
 
         $response = $this->post(route('users.store'), [
             'name' => 'Samiti Officer',
@@ -130,11 +165,35 @@ final class UserManagementTest extends TestCase
             'password' => 'Passw0rd!23',
             'password_confirmation' => 'Passw0rd!23',
             'status' => '1',
+            'district_id' => $district->id,
             'district_union_id' => $districtUnion->id,
         ]);
 
         $response->assertSessionHasErrors('samiti_id');
         $this->assertDatabaseMissing('users', ['email' => 'samiti.missing@example.test']);
+    }
+
+    public function test_creating_a_non_circle_user_without_district_fails_validation(): void
+    {
+        $admin = $this->staffUser(1);
+        $this->grant($admin, [1, 2]);
+        $this->actingAs($admin);
+
+        $districtUnion = DistrictUnion::factory()->create();
+
+        $response = $this->post(route('users.store'), [
+            'name' => 'District Union Officer',
+            'email' => 'du.missing.district@example.test',
+            'mobile' => '9876500009',
+            'user_type' => 2,
+            'password' => 'Passw0rd!23',
+            'password_confirmation' => 'Passw0rd!23',
+            'status' => '1',
+            'district_union_id' => $districtUnion->id,
+        ]);
+
+        $response->assertSessionHasErrors('district_id');
+        $this->assertDatabaseMissing('users', ['email' => 'du.missing.district@example.test']);
     }
 
     public function test_super_admin_and_vle_roles_cannot_be_created_via_this_screen(): void
@@ -143,7 +202,8 @@ final class UserManagementTest extends TestCase
         $this->grant($admin, [1, 2]);
         $this->actingAs($admin);
 
-        $districtUnion = DistrictUnion::factory()->create();
+        $district = District::factory()->create();
+        $districtUnion = DistrictUnion::factory()->create(['district_id' => $district->id]);
 
         $asSuperAdmin = $this->post(route('users.store'), [
             'name' => 'Would Be Admin',
@@ -153,6 +213,7 @@ final class UserManagementTest extends TestCase
             'password' => 'Passw0rd!23',
             'password_confirmation' => 'Passw0rd!23',
             'status' => '1',
+            'district_id' => $district->id,
             'district_union_id' => $districtUnion->id,
         ]);
         $asSuperAdmin->assertSessionHasErrors('user_type');
@@ -165,6 +226,7 @@ final class UserManagementTest extends TestCase
             'password' => 'Passw0rd!23',
             'password_confirmation' => 'Passw0rd!23',
             'status' => '1',
+            'district_id' => $district->id,
             'district_union_id' => $districtUnion->id,
         ]);
         $asVle->assertSessionHasErrors('user_type');
@@ -193,12 +255,14 @@ final class UserManagementTest extends TestCase
         $this->grant($admin, [1, 2]);
         $this->actingAs($admin);
 
-        $originalDu = DistrictUnion::factory()->create(['legacy_id' => 701]);
-        $newDu = DistrictUnion::factory()->create(['legacy_id' => 702]);
+        $district = District::factory()->create();
+        $originalDu = DistrictUnion::factory()->create(['legacy_id' => 701, 'district_id' => $district->id]);
+        $newDu = DistrictUnion::factory()->create(['legacy_id' => 702, 'district_id' => $district->id]);
         $target = $this->staffUser(2, ['district_union_master_id' => $originalDu->id, 'districtunion' => $originalDu->legacy_id]);
 
         $response = $this->put(route('users.update', $target), [
             'status' => '0',
+            'district_id' => $district->id,
             'district_union_id' => $newDu->id,
         ]);
 

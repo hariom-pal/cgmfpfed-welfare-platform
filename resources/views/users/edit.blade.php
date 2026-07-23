@@ -2,7 +2,7 @@
 
 @section('title', 'Edit User')
 @section('heading', 'Edit User — '.$record->name)
-@section('subtitle', $record->role?->type)
+@section('subtitle', app(\App\Services\RoleService::class)->name($record))
 
 @php
     $breadcrumbs = ['User Management' => route('users.index'), 'Edit' => null];
