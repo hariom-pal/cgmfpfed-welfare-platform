@@ -37,6 +37,9 @@ class ScholarshipWorkflowTransition extends Model
         return $this->belongsTo(ScholarshipApplication::class, 'scholarship_application_id');
     }
 
+    /**
+     * @return BelongsTo<User, $this>
+     */
     public function actor(): BelongsTo
     {
         return $this->belongsTo(User::class, 'acted_by');

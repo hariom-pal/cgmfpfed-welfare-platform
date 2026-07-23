@@ -27,6 +27,7 @@ class ScholarshipApplication extends Model
         'uuid',
         'application_number',
         'applicant_user_id',
+        'legacy_added_by',
         'academic_session_id',
         'scholarship_session_id',
         'scheme_id',
@@ -185,11 +186,41 @@ class ScholarshipApplication extends Model
         return $this->belongsTo(Ward::class);
     }
 
+    /**
+     * @return BelongsTo<User, $this>
+     */
     public function applicant(): BelongsTo
     {
         return $this->belongsTo(User::class, 'applicant_user_id');
     }
 
+    /**
+     * Resolves the submitting VLE independently of `applicant_user_id` (which is never
+     * backfilled): prefers the linked `applicant` relation when set, otherwise looks up
+     * whichever Laravel user has since been provisioned with a matching `csc_id` for the
+     * legacy `added_by` CSC ID recorded on this application. Returns null only when neither
+     * is available — the caller should still always have `legacy_added_by` to display.
+     */
+    public function resolveLegacyVleUser(): ?User
+    {
+        if ($this->relationLoaded('applicant') && $this->applicant !== null) {
+            return $this->applicant;
+        }
+
+        if ($this->applicant_user_id !== null) {
+            return $this->applicant()->first();
+        }
+
+        if ($this->legacy_added_by === null || $this->legacy_added_by === '') {
+            return null;
+        }
+
+        return User::query()->where('csc_id', $this->legacy_added_by)->first();
+    }
+
+    /**
+     * @return HasMany<ScholarshipApplicationAudit, $this>
+     */
     public function audits(): HasMany
     {
         return $this->hasMany(ScholarshipApplicationAudit::class);
@@ -219,6 +250,9 @@ class ScholarshipApplication extends Model
         return $this->hasMany(ScholarshipWalletTransaction::class);
     }
 
+    /**
+     * @return HasMany<ScholarshipWorkflowTransition, $this>
+     */
     public function workflowTransitions(): HasMany
     {
         return $this->hasMany(ScholarshipWorkflowTransition::class);
@@ -231,6 +265,24 @@ class ScholarshipApplication extends Model
     {
         return $this->hasOne(ScholarshipWorkflowTransition::class)
             ->latestOfMany('acted_at');
+    }
+
+    /**
+     * @return HasOne<ScholarshipApplicationAudit, $this>
+     */
+    public function latestAudit(): HasOne
+    {
+        return $this->hasOne(ScholarshipApplicationAudit::class)
+            ->latestOfMany('acted_at');
+    }
+
+    /**
+     * @return HasOne<ScholarshipWalletTransaction, $this>
+     */
+    public function latestWalletTransaction(): HasOne
+    {
+        return $this->hasOne(ScholarshipWalletTransaction::class)
+            ->latestOfMany('created_at');
     }
 
     public function paymentAttempts(): HasMany

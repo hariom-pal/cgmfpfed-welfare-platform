@@ -84,11 +84,11 @@ final class MenuBuilder
 
         if ($this->permissions->can($user, 'masters.manage')) {
             $items[] = [
-                'label' => 'Administration',
-                'icon' => 'fa-solid fa-user-shield',
-                'active' => ['export-templates.*'],
+                'label' => 'Settings',
+                'icon' => 'fa-solid fa-gear',
+                'active' => ['settings.csv-export-configuration.*'],
                 'children' => [
-                    $this->routeItem('CSV Export Configuration', 'export-templates.index', 'fa-regular fa-circle', ['export-templates.*']),
+                    $this->routeItem('CSV Export Configuration', 'settings.csv-export-configuration.index', 'fa-regular fa-circle', ['settings.csv-export-configuration.*']),
                 ],
             ];
         }
@@ -109,9 +109,6 @@ final class MenuBuilder
                     $this->disabledItem('Upload UTR', 'fa-regular fa-circle'),
                 ],
             ];
-        }
-        if ($this->permissions->can($user, 'settings.manage')) {
-            $otherModules[] = $this->routeItem('Settings', 'settings.index', 'fa-regular fa-circle');
         }
         if ($otherModules !== []) {
             $items[] = [

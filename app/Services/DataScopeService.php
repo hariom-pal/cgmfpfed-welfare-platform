@@ -26,7 +26,11 @@ final class DataScopeService
         $role = $this->roles->key($user);
 
         if ($role !== 'VLE') {
+            // Pending-at-VLE (application_state=Created) is visible to non-VLE roles too, scoped by the same
+            // organizational hierarchy (samiti/district-union/circle/global) as every other state below —
+            // only the transient 'submitted' state (set for an instant during the wallet-success handoff) stays hidden.
             $query->whereIn('application_state', [
+                ApplicationState::Created->value,
                 ApplicationState::InWorkflow->value,
                 ApplicationState::ReturnedForCorrection->value,
                 ApplicationState::Rejected->value,
@@ -46,7 +50,7 @@ final class DataScopeService
 
     public function canViewScholarshipApplication(User $user, ScholarshipApplication $application): bool
     {
-        if ($this->roles->key($user) !== 'VLE' && $application->application_state === ApplicationState::Created) {
+        if ($this->roles->key($user) !== 'VLE' && $application->application_state === ApplicationState::Submitted) {
             return false;
         }
 

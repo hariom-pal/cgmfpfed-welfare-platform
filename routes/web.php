@@ -36,7 +36,7 @@ Route::middleware(['auth', 'legacy.visitor'])->group(function (): void {
         Route::patch('masters/{masterKey}/{uuid}/toggle', [MasterController::class, 'toggle'])->name('masters.toggle');
     });
 
-    Route::middleware('can:masters.manage')->prefix('administration/csv-export-configuration')->name('export-templates.')->group(function (): void {
+    Route::middleware('can:masters.manage')->prefix('settings/csv-export-configuration')->name('settings.csv-export-configuration.')->group(function (): void {
         Route::get('/', [ExportTemplateController::class, 'index'])->name('index');
         Route::get('{module}', [ExportTemplateController::class, 'edit'])->name('edit');
         Route::put('{module}', [ExportTemplateController::class, 'update'])->name('update');

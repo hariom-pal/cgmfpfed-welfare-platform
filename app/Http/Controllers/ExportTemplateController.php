@@ -15,9 +15,9 @@ final class ExportTemplateController extends Controller
 
     public function index(): View
     {
-        return view('admin.export_templates.index', [
+        return view('settings.export_templates.index', [
             'definitions' => $this->templates->definitions(),
-            'breadcrumbs' => ['Administration' => null, 'CSV Export Configuration' => null],
+            'breadcrumbs' => ['Settings' => null, 'CSV Export Configuration' => null],
         ]);
     }
 
@@ -25,13 +25,13 @@ final class ExportTemplateController extends Controller
     {
         $definition = $this->templates->definitionFor($module);
 
-        return view('admin.export_templates.edit', [
+        return view('settings.export_templates.edit', [
             'module' => $module,
             'definition' => $definition,
             'fields' => $this->templates->fieldsFor($module),
             'breadcrumbs' => [
-                'Administration' => null,
-                'CSV Export Configuration' => route('export-templates.index'),
+                'Settings' => null,
+                'CSV Export Configuration' => route('settings.csv-export-configuration.index'),
                 $definition->label() => null,
             ],
         ]);
@@ -61,6 +61,6 @@ final class ExportTemplateController extends Controller
 
         $this->templates->save($module, $fields, $request->user());
 
-        return redirect()->route('export-templates.edit', $module)->with('status', 'CSV export configuration saved.');
+        return redirect()->route('settings.csv-export-configuration.edit', $module)->with('status', 'CSV export configuration saved.');
     }
 }

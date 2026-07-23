@@ -229,6 +229,7 @@ final class CompleteLegacyDataMigrationSeeder extends Seeder
                         'uuid' => (string) Str::uuid(),
                         'application_number' => $row->application_id ?: 'LEGACY-'.$row->id,
                         'applicant_user_id' => $this->userIdForCsc((string) $row->added_by),
+                        'legacy_added_by' => (string) $row->added_by,
                         'academic_session_id' => $academicSessionId,
                         'scholarship_session_id' => $scholarshipSessionId,
                         'scheme_id' => (int) $row->scheme,

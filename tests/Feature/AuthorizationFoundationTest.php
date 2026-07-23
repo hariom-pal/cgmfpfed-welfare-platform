@@ -60,17 +60,17 @@ final class AuthorizationFoundationTest extends TestCase
 
         $this->assertSame('Dashboard', $labels[0]);
         $this->assertSame('Masters', $labels[1]);
-        $this->assertSame(['Dashboard', 'Masters', 'Scholarship Applications', 'Beema', 'Reports', 'User Management', 'Administration', 'Other Modules'], $labels);
+        $this->assertSame(['Dashboard', 'Masters', 'Scholarship Applications', 'Beema', 'Reports', 'User Management', 'Settings', 'Other Modules'], $labels);
         $this->assertContains('Scholarship Applications', $labels);
         $this->assertContains('Beema', $labels);
         $this->assertContains('Reports', $labels);
         $this->assertContains('User Management', $labels);
-        $this->assertContains('Administration', $labels);
+        $this->assertContains('Settings', $labels);
         $this->assertContains('Other Modules', $labels);
 
-        $administrationChildren = collect($menu->firstWhere('label', 'Administration')['children'] ?? [])->pluck('label')->all();
-        $this->assertContains('CSV Export Configuration', $administrationChildren);
-        $this->assertSame(route('export-templates.index'), collect($menu->firstWhere('label', 'Administration')['children'])->firstWhere('label', 'CSV Export Configuration')['url']);
+        $settingsChildren = collect($menu->firstWhere('label', 'Settings')['children'] ?? [])->pluck('label')->all();
+        $this->assertContains('CSV Export Configuration', $settingsChildren);
+        $this->assertSame(route('settings.csv-export-configuration.index'), collect($menu->firstWhere('label', 'Settings')['children'])->firstWhere('label', 'CSV Export Configuration')['url']);
         $this->assertSame(
             collect(config('masters'))->pluck('label')->map(fn (?string $label, string $key): string => $label ?? str($key)->headline()->toString())->values()->all(),
             $masterChildren,

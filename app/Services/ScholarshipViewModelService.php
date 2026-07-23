@@ -4,13 +4,20 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Domains\Scholarship\Enums\ScholarshipApplicationStatus;
 use App\Models\Scheme;
 use App\Models\ScholarshipApplication;
+use App\Models\ScholarshipApplicationAudit;
+use App\Models\ScholarshipWorkflowTransition;
+use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 
 final class ScholarshipViewModelService
 {
+    public function __construct(private readonly RoleService $roles) {}
+
     /**
      * @return array<string, mixed>
      */
@@ -63,7 +70,74 @@ final class ScholarshipViewModelService
             'collectionSummary' => $this->collectionSummary($application, $verification),
             'statusSummary' => $this->statusSummary($application),
             'statusLabels' => $this->statusLabels(),
+            'submittedBy' => $this->submittedBy($application),
+            'auditTrail' => $this->auditTrail($application),
         ];
+    }
+
+    /**
+     * Submission identity: the application must always be traceable back to the VLE who
+     * submitted it. `applicant_user_id` is only ever set going forward and is never
+     * backfilled for legacy-imported applications, so this always falls back to the legacy
+     * CSC ID (`legacy_added_by`) recorded on every migrated application, and separately
+     * resolves a Laravel user by matching `csc_id` if that VLE has since logged in — without
+     * ever reading or writing `applicant_user_id` for that resolution.
+     *
+     * @return array{name: ?string, cscId: ?string, linkedUser: ?User}
+     */
+    private function submittedBy(ScholarshipApplication $application): array
+    {
+        $linkedUser = $application->resolveLegacyVleUser();
+
+        return [
+            'name' => $linkedUser?->name,
+            'cscId' => $application->legacy_added_by ?? $linkedUser?->csc_id,
+            'linkedUser' => $linkedUser,
+        ];
+    }
+
+    /**
+     * Unified, chronological audit trail. Every native workflow action writes both a
+     * `scholarship_workflow_transitions` row (typed, has `acted_by_role` already) and a
+     * `scholarship_application_audits` row (legacy-shaped) for the same event, so audits are
+     * only included when they predate the application's first transition — i.e. genuine
+     * legacy history — to avoid showing the same action twice.
+     *
+     * @return list<array{actedAt: mixed, action: string, actorName: ?string, role: ?string, districtUnion: ?string, samiti: ?string, remarks: ?string}>
+     */
+    private function auditTrail(ScholarshipApplication $application): array
+    {
+        $transitions = $application->workflowTransitions->map(fn (ScholarshipWorkflowTransition $transition): array => [
+            'actedAt' => $transition->acted_at,
+            'action' => Str::of(str_replace('_', ' ', $transition->action))->title()->toString(),
+            'actorName' => $transition->actor?->name,
+            'role' => $transition->acted_by_role ?: ($transition->actor ? $this->roles->name($transition->actor) : null),
+            'districtUnion' => $transition->actor?->districtUnionMaster?->name,
+            'samiti' => $transition->actor?->samitiMaster?->name,
+            'remarks' => $transition->remarks,
+        ]);
+
+        $earliestTransitionAt = $application->workflowTransitions->min('acted_at');
+
+        $audits = $application->audits
+            ->when($earliestTransitionAt !== null, fn ($audits) => $audits->filter(
+                fn (ScholarshipApplicationAudit $audit): bool => $audit->acted_at !== null && $audit->acted_at->lt($earliestTransitionAt)
+            ))
+            ->map(fn (ScholarshipApplicationAudit $audit): array => [
+                'actedAt' => $audit->acted_at,
+                'action' => ScholarshipApplicationStatus::tryFrom((int) $audit->to_status)?->label()
+                    ?? Str::of(str_replace('_', ' ', $audit->action))->title()->toString(),
+                'actorName' => $audit->actor?->name,
+                'role' => $audit->actor ? $this->roles->name($audit->actor) : null,
+                'districtUnion' => $audit->actor?->districtUnionMaster?->name,
+                'samiti' => $audit->actor?->samitiMaster?->name,
+                'remarks' => $audit->remarks,
+            ]);
+
+        return $transitions->concat($audits)
+            ->sortByDesc('actedAt')
+            ->values()
+            ->all();
     }
 
     /**

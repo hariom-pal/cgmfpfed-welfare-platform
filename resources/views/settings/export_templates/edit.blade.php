@@ -7,7 +7,7 @@
 @section('content')
     <x-card title="Columns" icon="fa-solid fa-file-csv">
         <x-slot:tools>
-            <a class="btn btn-outline-secondary" href="{{ route('export-templates.index') }}">
+            <a class="btn btn-outline-secondary" href="{{ route('settings.csv-export-configuration.index') }}">
                 <i class="fa-solid fa-arrow-left me-1"></i>Back to Modules
             </a>
         </x-slot:tools>
@@ -16,7 +16,7 @@
             Drag rows with <i class="fa-solid fa-grip-vertical"></i> to reorder columns. Untick a field to exclude it from the CSV. This order and visibility is what every "Download CSV" export for {{ $definition->label() }} will use.
         </p>
 
-        <form method="POST" action="{{ route('export-templates.update', $module) }}" id="export-template-form">
+        <form method="POST" action="{{ route('settings.csv-export-configuration.update', $module) }}" id="export-template-form">
             @csrf
             @method('PUT')
 

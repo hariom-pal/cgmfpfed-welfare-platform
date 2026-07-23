@@ -21,7 +21,7 @@
                         <td class="fw-semibold">{{ $definition->label() }}</td>
                         <td>{{ count($definition->availableFields()) }}</td>
                         <td class="text-end">
-                            <a class="btn btn-sm btn-outline-primary" href="{{ route('export-templates.edit', $definition->module()) }}">
+                            <a class="btn btn-sm btn-outline-primary" href="{{ route('settings.csv-export-configuration.edit', $definition->module()) }}">
                                 <i class="fa-solid fa-sliders me-1"></i>Configure
                             </a>
                         </td>

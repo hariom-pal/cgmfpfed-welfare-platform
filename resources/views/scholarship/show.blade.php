@@ -119,29 +119,53 @@
             <x-card title="Audit Trail" icon="fa-solid fa-clock-rotate-left">
                 <div class="table-responsive">
                     <table class="table table-sm align-middle mb-0">
-                        <thead><tr><th>Time</th><th>Action</th><th>Status</th><th>Remarks</th></tr></thead>
+                        <thead><tr><th>Action</th><th>By</th><th>District Union</th><th>Samiti</th><th>Date &amp; Time</th><th>Remarks</th></tr></thead>
                         <tbody>
-                        @foreach($application->audits->sortByDesc('acted_at') as $audit)
+                        @forelse($auditTrail as $entry)
                             <tr>
-                                <td>{{ $audit->acted_at?->format('d M Y H:i') }}</td>
-                                <td>{{ str_replace('_', ' ', $audit->action) }}</td>
-                                <td>{{ $audit->to_status }}</td>
-                                <td>{{ $audit->remarks }}</td>
+                                <td>
+                                    <div class="fw-semibold">{{ $entry['action'] }}</div>
+                                </td>
+                                <td>
+                                    <div>{{ $entry['actorName'] ?? 'Unknown' }}</div>
+                                    @if($entry['role'])
+                                        <div class="small text-muted">{{ $entry['role'] }}</div>
+                                    @endif
+                                </td>
+                                <td>{{ $entry['districtUnion'] ?? '—' }}</td>
+                                <td>{{ $entry['samiti'] ?? '—' }}</td>
+                                <td>{{ $entry['actedAt']?->format('d M Y H:i') }}</td>
+                                <td>{{ $entry['remarks'] ?? '—' }}</td>
                             </tr>
-                        @endforeach
+                        @empty
+                            <tr><td colspan="6" class="text-muted text-center py-3">No audit history recorded.</td></tr>
+                        @endforelse
                         </tbody>
                     </table>
                 </div>
             </x-card>
         </div>
         <div class="col-lg-4">
-            <x-card title="Status" icon="fa-solid fa-list-check">
+            <x-card title="Status" icon="fa-solid fa-list-check" class="mb-3">
                 <dl class="row mb-0">
                     <dt class="col-sm-5">Application</dt><dd class="col-sm-7">{{ $statusSummary['applicationNumber'] }}</dd>
                     <dt class="col-sm-5">Status</dt><dd class="col-sm-7">{{ $statusSummary['status'] }}</dd>
                     <dt class="col-sm-5">Amount</dt><dd class="col-sm-7">{{ $statusSummary['amount'] }}</dd>
                     <dt class="col-sm-5">Payment</dt><dd class="col-sm-7">{{ $statusSummary['payment'] }}</dd>
                     <dt class="col-sm-5">Reference</dt><dd class="col-sm-7">{{ $statusSummary['reference'] }}</dd>
+                </dl>
+            </x-card>
+
+            <x-card title="Submitted By" icon="fa-solid fa-user-check">
+                <dl class="row mb-0">
+                    <dt class="col-sm-5">VLE Name</dt>
+                    <dd class="col-sm-7">{{ $submittedBy['name'] ?? 'Not yet linked to a portal account' }}</dd>
+                    <dt class="col-sm-5">CSC ID</dt>
+                    <dd class="col-sm-7">{{ $submittedBy['cscId'] ?? 'Not available' }}</dd>
+                    @if($submittedBy['linkedUser'])
+                        <dt class="col-sm-5">Linked User</dt>
+                        <dd class="col-sm-7">{{ $submittedBy['linkedUser']->name }} ({{ $submittedBy['linkedUser']->email }})</dd>
+                    @endif
                 </dl>
             </x-card>
         </div>

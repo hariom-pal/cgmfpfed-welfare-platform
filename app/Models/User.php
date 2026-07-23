@@ -42,21 +42,33 @@ class User extends Authenticatable
         'fail_attempt',
     ];
 
+    /**
+     * @return BelongsTo<UserType, $this>
+     */
     public function role(): BelongsTo
     {
         return $this->belongsTo(UserType::class, 'user_type');
     }
 
+    /**
+     * @return BelongsTo<DistrictUnion, $this>
+     */
     public function districtUnionMaster(): BelongsTo
     {
         return $this->belongsTo(DistrictUnion::class, 'district_union_master_id');
     }
 
+    /**
+     * @return BelongsTo<Samiti, $this>
+     */
     public function samitiMaster(): BelongsTo
     {
         return $this->belongsTo(Samiti::class, 'samiti_master_id');
     }
 
+    /**
+     * @return BelongsTo<Circle, $this>
+     */
     public function circleMaster(): BelongsTo
     {
         return $this->belongsTo(Circle::class, 'circle_master_id');

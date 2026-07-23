@@ -134,14 +134,17 @@ class ScholarshipController extends Controller
             'village',
             'city',
             'ward',
-            'audits',
+            'audits.actor.districtUnionMaster',
+            'audits.actor.samitiMaster',
             'documents.uploader',
             'documents.replacer',
             'currentDocuments',
             'tendupattaCollections',
-            'workflowTransitions.actor',
+            'workflowTransitions.actor.districtUnionMaster',
+            'workflowTransitions.actor.samitiMaster',
             'latestWorkflowTransition',
             'paymentAttempts',
+            'applicant',
         ]);
 
         return view('scholarship.show', $this->viewModels->applicationDetails($application));

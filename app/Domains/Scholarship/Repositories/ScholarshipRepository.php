@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Domains\Scholarship\Repositories;
 
 use App\Domains\Scholarship\Contracts\ScholarshipRepositoryInterface;
-use App\Domains\Scholarship\Enums\ApplicationState;
 use App\Domains\Scholarship\Enums\ApprovalState;
 use App\Domains\Scholarship\Enums\ScholarshipApplicationStatus;
 use App\Models\ScholarshipApplication;
@@ -38,7 +37,9 @@ final class ScholarshipRepository extends BaseRepository implements ScholarshipR
                 'village',
                 'city',
                 'ward',
-                'latestWorkflowTransition',
+                'latestWorkflowTransition.actor',
+                'latestAudit.actor',
+                'latestWalletTransaction',
             ])
             ->latest();
 
@@ -77,7 +78,11 @@ final class ScholarshipRepository extends BaseRepository implements ScholarshipR
             ->when($filters['status'] ?? null, function (Builder $builder, mixed $status): void {
                 match ($status) {
                     'pending' => $builder->whereIn('status', ScholarshipApplicationStatus::underProcessValues()),
-                    'pending_vle' => $builder->where('application_state', ApplicationState::Created->value),
+                    // Authoritative business rule (legacy `application`): application_status = 0 AND payment_txn_status = 0.
+                    // `status` is the direct 1:1 copy of legacy `application_status`; `wallet_paid_at` is only ever set
+                    // when the legacy/native wallet fee payment succeeds (payment_txn_status = 1), so `wallet_paid_at
+                    // IS NULL` is the exact Laravel equivalent of `payment_txn_status = 0`.
+                    'pending_vle' => $builder->where('status', ScholarshipApplicationStatus::Pending->value)->whereNull('wallet_paid_at'),
                     'rejected' => $builder->whereIn('status', ScholarshipApplicationStatus::rejectedValues()),
                     'completed' => $builder->whereIn('status', ScholarshipApplicationStatus::completedValues()),
                     'payment_failed' => $builder->whereIn('status', ScholarshipApplicationStatus::failedValues()),
