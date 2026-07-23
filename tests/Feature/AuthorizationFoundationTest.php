@@ -154,17 +154,38 @@ final class AuthorizationFoundationTest extends TestCase
         $this->assertFalse($scope->canViewScholarshipApplication($du, $hidden));
     }
 
-    public function test_account_role_menu_and_ability_access(): void
+    public function test_account_role_has_zero_role_priviledge_rows_matching_legacy(): void
     {
+        // Legacy's `role_priviledge` table has zero rows for role_id=6 in production
+        // (scholarship.sql line 1062) — Account's only real legacy gate is the hardcoded
+        // `USER_TYPE=='6'` check in Scholarship::remove()/forward(), not a permission grant.
+        $this->assertSame(0, DB::table('role_priviledge')->where('role_id', 6)->count());
+    }
+
+    public function test_account_role_menu_has_no_permission_gated_items_matching_legacy(): void
+    {
+        // Legacy shows Account no menu at all: Batches requires permission 38 (which role 6
+        // never holds) and Payment/Report are hardcoded USER_TYPE==1 only. With zero
+        // role_priviledge rows, Laravel must reproduce that same "headless" shape.
         $account = $this->legacyUser(6);
-        $this->grant($account, [38]);
 
         $labels = collect(app(MenuBuilder::class)->buildFor($account))->pluck('label')->all();
-        $this->assertContains('Workflow Batches', $labels);
         $this->assertContains('Scholarship Applications', $labels);
+        $this->assertNotContains('Workflow Batches', $labels);
         $this->assertNotContains('User Management', $labels);
         $this->assertNotContains('Masters', $labels);
         $this->assertNotContains('Settings', $labels);
+
+        $this->assertFalse(app(PermissionService::class)->has($account, 38));
+    }
+
+    public function test_account_role_can_still_reach_workflow_routes_via_role_membership(): void
+    {
+        // Access to the workflow route itself comes from role-list membership in
+        // config('legacy_authorization.abilities'), which mirrors legacy's hardcoded
+        // USER_TYPE=='6' check — a different mechanism from role_priviledge permissions,
+        // and unaffected by Account having zero permission rows.
+        $account = $this->legacyUser(6);
 
         $this->assertTrue(app(PermissionService::class)->can($account, 'workflow.view'));
         $this->assertTrue(app(PermissionService::class)->can($account, 'workflow.action'));
