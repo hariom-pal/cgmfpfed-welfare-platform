@@ -13,16 +13,33 @@ use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
 
 /**
- * Automated counterpart to legacy `Payment::uploadCsv()` (manual CSV upload) — reads every CSV
- * file dropped into the reverse-feed source directory, reconciles matched applications' payment
- * results, then archives the processed file. Column layout matches legacy exactly:
- * column 1 = application_number, column 2 = "Failed"/"FAILED" or the payment UTR reference,
- * column 3 = failure reason (ignored on success).
+ * Reconciles AXIS Bank's real settlement-response feed files (named `axis_reversefeed_*`,
+ * `^`-delimited, no header row, no file extension) into scholarship payment results, then
+ * archives each processed file. This feed is shared across CGMFPFED's modules (e.g. Beema) —
+ * a row whose reference (field 0/9) doesn't match any `scholarship_applications.application_number`
+ * simply belongs to another module and is skipped, never treated as an error.
+ *
+ * Field layout (0-indexed, confirmed against real sample data, both SUCCESS and REJECTED rows):
+ *   [0]/[9]  our payment reference == scholarship_applications.application_number
+ *   [6]      status: "SUCCESS" on success; a rejection reason code otherwise (e.g. "REJECTED")
+ *   [7]      "Success--{UTR}" on success; a human-readable failure reason on failure
+ *   [11]     bank transaction reference (present on both success and failure, "CN..."/"CX..." prefix)
+ *   [12]     amount
  */
 #[Signature('scholarship:reconcile-axis-reverse-feed')]
-#[Description('Reconcile AXIS bank reverse-feed CSV files into scholarship payment results, then archive each processed file.')]
+#[Description('Reconcile AXIS bank reverse-feed files into scholarship payment results, then archive each processed file.')]
 final class ReconcileAxisReverseFeed extends Command
 {
+    private const int FIELD_REFERENCE = 0;
+
+    private const int FIELD_STATUS = 6;
+
+    private const int FIELD_MESSAGE = 7;
+
+    private const int FIELD_BANK_TXN_REFERENCE = 11;
+
+    private const int FIELD_AMOUNT = 12;
+
     public function handle(ScholarshipServiceInterface $service): int
     {
         $sourcePath = (string) config('axis_payment.reverse_feed_source_path');
@@ -52,7 +69,7 @@ final class ReconcileAxisReverseFeed extends Command
             mkdir($archivePath, 0755, true);
         }
 
-        $files = glob(rtrim($sourcePath, '/').'/*.csv') ?: [];
+        $files = glob(rtrim($sourcePath, '/').'/axis_reversefeed_*') ?: [];
         $reconciled = 0;
         $skipped = 0;
 
@@ -66,7 +83,7 @@ final class ReconcileAxisReverseFeed extends Command
         }
 
         $this->components->info(sprintf(
-            'Reconciled %d application(s), skipped %d row(s), across %d file(s).',
+            'Reconciled %d application(s), skipped %d row(s) (not ours or not awaiting a result), across %d file(s).',
             $reconciled,
             $skipped,
             count($files),
@@ -80,8 +97,8 @@ final class ReconcileAxisReverseFeed extends Command
      */
     private function reconcileFile(string $file, ScholarshipServiceInterface $service, User $actor): array
     {
-        $handle = fopen($file, 'r');
-        if ($handle === false) {
+        $lines = file($file, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+        if ($lines === false) {
             $this->error("Unable to open [{$file}].");
 
             return [0, 0];
@@ -89,43 +106,48 @@ final class ReconcileAxisReverseFeed extends Command
 
         $reconciled = 0;
         $skipped = 0;
-        $rowNumber = 0;
 
-        while (($row = fgetcsv($handle, 1024)) !== false) {
-            $rowNumber++;
-            if ($rowNumber === 1) {
-                continue;
-            }
+        foreach ($lines as $lineNumber => $line) {
+            $fields = explode('^', $line);
+            $reference = trim($fields[self::FIELD_REFERENCE]);
 
-            $applicationNumber = trim((string) ($row[1] ?? ''));
-            $statusOrReference = trim((string) ($row[2] ?? ''));
-            $reason = trim((string) ($row[3] ?? ''));
-
-            $application = ScholarshipApplication::query()
-                ->where('application_number', $applicationNumber)
-                ->first();
-
-            if (! $application instanceof ScholarshipApplication
-                || (int) $application->status !== ScholarshipApplicationStatus::PaymentBatchSubmitted->value) {
+            if ($reference === '') {
                 $skipped++;
 
                 continue;
             }
 
-            $failed = in_array(strtoupper($statusOrReference), ['FAILED'], true);
+            $application = ScholarshipApplication::query()
+                ->where('application_number', $reference)
+                ->first();
+
+            if (! $application instanceof ScholarshipApplication
+                || (int) $application->status !== ScholarshipApplicationStatus::PaymentBatchSubmitted->value) {
+                // Not one of ours (e.g. a Beema reference on the same shared feed), or already settled.
+                $skipped++;
+
+                continue;
+            }
+
+            $success = strtoupper(trim($fields[self::FIELD_STATUS] ?? '')) === 'SUCCESS';
+            $bankTransactionReference = trim($fields[self::FIELD_BANK_TXN_REFERENCE] ?? '') ?: null;
+            $message = trim($fields[self::FIELD_MESSAGE] ?? '');
 
             $service->recordPaymentResult(
                 $application,
-                ! $failed,
-                $failed ? null : $statusOrReference,
-                $failed ? $reason : null,
+                $success,
+                $success ? $bankTransactionReference : null,
+                $success ? null : $message,
                 $actor,
-                ['reverse_feed_file' => basename($file), 'reverse_feed_row' => $rowNumber],
+                [
+                    'reverse_feed_file' => basename($file),
+                    'reverse_feed_line' => $lineNumber + 1,
+                    'bank_transaction_reference' => $bankTransactionReference,
+                    'amount' => trim($fields[self::FIELD_AMOUNT] ?? ''),
+                ],
             );
             $reconciled++;
         }
-
-        fclose($handle);
 
         return [$reconciled, $skipped];
     }

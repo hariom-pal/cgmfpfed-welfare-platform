@@ -310,21 +310,24 @@ final class ScholarshipWorkflowRoleGatingTest extends TestCase
             'application_number' => 'S-RECON-FAILED',
         ]);
 
-        file_put_contents($sourcePath.'/feed1.csv', implode("\n", [
-            'ignored,application_id,status_or_utr,reason',
-            'x,S-RECON-PAID,UTR-999,',
-            'x,S-RECON-FAILED,Failed,Bank rejected',
+        // Real AXIS reverse-feed format: `^`-delimited, no header, no file extension, shared
+        // across modules (a Beema reference here simply won't match any application_number and
+        // is silently skipped — not an error).
+        file_put_contents($sourcePath.'/axis_reversefeed_cgminormki_20260624-164146-464', implode("\n", [
+            'S-RECON-PAID^CGMINORSSY^2026-06-24 16:29:27.0^N^AXISCN1385052971^^SUCCESS^Success--UTIBN62026062485393912^38^S-RECON-PAID^2026-06-24 16:41:14.0^CN1385052971^12000^923010071993538^UTIB0000139^D^2002010032090^CGMINORSSY_24062026_1782298764',
+            'S-RECON-FAILED^CGMINORSSY^2026-06-24 16:29:27.0^N^^^REJECTED^Beneficiary IFSC code is invalid^38^S-RECON-FAILED^2026-06-24 16:39:01.0^CX0032649836^12000^923010071993538^UTIB0000139^D^6105000100027853^CGMINORSSY_24062026_1782298764',
+            'A1236021430^CGMINORSSY^2026-06-24 16:29:27.0^N^AXISCN1385052999^^SUCCESS^Success--UTIBN62026062485399999^38^A1236021430^2026-06-24 16:41:14.0^CN1385052999^12000^923010071993538^UTIB0000139^D^2002010032090^CGMINORSSY_24062026_1782298764',
         ]));
 
         $this->artisan('scholarship:reconcile-axis-reverse-feed')->assertExitCode(Command::SUCCESS);
 
         $this->assertSame(ScholarshipApplicationStatus::PaymentCompleted->value, $paid->refresh()->status);
-        $this->assertSame('UTR-999', $paid->payment_reference_id);
+        $this->assertSame('CN1385052971', $paid->payment_reference_id);
         $this->assertSame(ScholarshipApplicationStatus::PaymentFailed->value, $failed->refresh()->status);
-        $this->assertSame('Bank rejected', $failed->payment_failure_reason);
+        $this->assertSame('Beneficiary IFSC code is invalid', $failed->payment_failure_reason);
 
-        $this->assertFileDoesNotExist($sourcePath.'/feed1.csv');
-        $this->assertNotEmpty(glob($archivePath.'/*.csv'));
+        $this->assertFileDoesNotExist($sourcePath.'/axis_reversefeed_cgminormki_20260624-164146-464');
+        $this->assertNotEmpty(glob($archivePath.'/*axis_reversefeed_*'));
 
         File::deleteDirectory($sourcePath);
         File::deleteDirectory($archivePath);
