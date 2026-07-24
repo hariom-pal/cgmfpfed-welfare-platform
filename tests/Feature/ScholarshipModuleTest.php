@@ -1040,6 +1040,28 @@ final class ScholarshipModuleTest extends TestCase
         ]);
     }
 
+    public function test_csc_connect_callback_failure_redirects_to_login_with_a_visible_error(): void
+    {
+        Http::fake([
+            config('csc.connect.token_endpoint') => Http::response(['error' => 'invalid_grant'], 200),
+        ]);
+
+        $response = $this->withSession(['connect_state' => '12345'])
+            ->get(route('csc.callback', ['code' => 'stale-code', 'state' => '12345']));
+
+        // Must redirect straight to login (one hop) — bouncing through "/" first, as Laravel's
+        // default exception handling does when there's no genuine "previous" page, ages out the
+        // flashed error before the login page ever renders it.
+        $response->assertRedirect(route('login'));
+        $this->assertGuest();
+
+        $this->followingRedirects()
+            ->withSession(['connect_state' => '12345'])
+            ->get(route('csc.callback', ['code' => 'stale-code', 'state' => '12345']))
+            ->assertOk()
+            ->assertSee('CSC Connect token exchange failed.');
+    }
+
     public function test_vle_submission_waits_for_wallet_success_before_final_submit(): void
     {
         $user = $this->userWithPermissions((int) config('csc.vle_role_id'), '313676900017');

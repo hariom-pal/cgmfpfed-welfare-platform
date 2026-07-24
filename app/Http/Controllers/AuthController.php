@@ -8,9 +8,11 @@ use App\Contracts\Services\CscConnectServiceInterface;
 use App\Models\User;
 use App\Services\SessionService;
 use App\Support\LegacyPassword;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 final class AuthController extends Controller
@@ -100,7 +102,13 @@ final class AuthController extends Controller
 
     public function cscCallback(Request $request): RedirectResponse
     {
-        $user = $this->cscConnectService->authenticateCallback($request);
+        try {
+            $user = $this->cscConnectService->authenticateCallback($request);
+        } catch (ValidationException $exception) {
+            return redirect()->route('login')->withErrors($exception->errors());
+        } catch (ConnectionException) {
+            return redirect()->route('login')->withErrors(['csc' => 'Could not reach CSC Connect. Please try again.']);
+        }
 
         Auth::login($user);
         $this->sessions->storeLegacyKeys($request, $user);
