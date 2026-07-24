@@ -17,6 +17,8 @@ class ScholarshipWorkflowBatch extends Model
         'meeting_date',
         'financial_year',
         'mom_file_path',
+        'axis_file_path',
+        'axis_file_generated_at',
         'remarks',
         'total_applications',
         'total_amount',
@@ -38,6 +40,7 @@ class ScholarshipWorkflowBatch extends Model
             'total_amount' => 'decimal:2',
             'submitted_at' => 'datetime',
             'finalized_at' => 'datetime',
+            'axis_file_generated_at' => 'datetime',
         ];
     }
 }

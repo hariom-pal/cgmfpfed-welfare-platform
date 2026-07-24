@@ -59,6 +59,8 @@ return [
         'applications.documents.view' => ['roles' => [1, 2, 3, 4, 5, 6, 'VLE']],
         'workflow.view' => ['roles' => [1, 2, 3, 4, 5, 6], 'permissions' => [6, 20, 21, 27, 28, 38]],
         'workflow.action' => ['roles' => [1, 2, 3, 4, 5, 6], 'permissions' => [6, 20, 21, 27, 28, 38]],
+        'workflow.ic-batch' => ['roles' => [4]],
+        'workflow.payment-batch' => ['roles' => [6]],
         'reports.view' => ['roles' => [1, 5], 'permissions' => [16, 34, 39]],
         'masters.manage' => ['roles' => [1]],
         'settings.manage' => ['permissions' => [1, 2, 4]],

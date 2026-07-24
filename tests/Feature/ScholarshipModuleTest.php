@@ -524,7 +524,7 @@ final class ScholarshipModuleTest extends TestCase
         $application = $this->service()->transition($application, 'recommend', 'IC verified', $user);
         $application = $this->service()->transition($application, 'recommend', 'DU verified', $user);
         $application = $this->service()->transition($application, 'recommend', 'HQ recommended', $user);
-        $application = $this->service()->transition($application, 'recommend', 'Accounts finalized', $user);
+        $application = $this->service()->transition($application, 'forward', 'Accounts finalized', $user);
 
         $batch = $this->service()->createPaymentBatch([$application->id], $user, 'Payment file submitted');
 

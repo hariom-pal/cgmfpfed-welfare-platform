@@ -29,6 +29,7 @@ use App\Services\BaseService;
 use App\Services\RoleService;
 use App\Services\ScholarshipSessionService;
 use BackedEnum;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -200,9 +201,8 @@ final class ScholarshipService extends BaseService implements ScholarshipService
             ScholarshipApplicationStatus::RejectedByDistrictUnion->value,
             ScholarshipApplicationStatus::RejectedByHQ->value,
             ScholarshipApplicationStatus::PermanentlyRejectedByAccounts->value,
-            ScholarshipApplicationStatus::PaymentFailed->value,
         ], true)) {
-            throw ValidationException::withMessages(['status' => 'Only returned or payment-failed applications can be resubmitted.']);
+            throw ValidationException::withMessages(['status' => 'Only returned applications can be resubmitted.']);
         }
 
         return DB::transaction(function () use ($application, $data, $user): ScholarshipApplication {
@@ -239,6 +239,28 @@ final class ScholarshipService extends BaseService implements ScholarshipService
             $this->notify($application, $user, 'Scholarship application resubmitted', $status->label());
 
             return $application->refresh();
+        });
+    }
+
+    public function deleteDraft(ScholarshipApplication $application, User $user, ?string $remarks = null): void
+    {
+        if (! in_array((int) $application->status, [
+            ScholarshipApplicationStatus::Pending->value,
+            ScholarshipApplicationStatus::Resubmitted->value,
+            ScholarshipApplicationStatus::PermanentlyRejectedBySamiti->value,
+            ScholarshipApplicationStatus::PermanentlyRejectedByIC->value,
+            ScholarshipApplicationStatus::PermanentlyRejectedByCCF->value,
+            ScholarshipApplicationStatus::PermanentlyRejectedByDistrictUnion->value,
+            ScholarshipApplicationStatus::PermanentlyRejectedByHQ->value,
+            ScholarshipApplicationStatus::PermanentlyRejectedByAccounts->value,
+        ], true)) {
+            throw ValidationException::withMessages(['status' => 'Only draft or permanently rejected applications can be deleted.']);
+        }
+
+        DB::transaction(function () use ($application, $user, $remarks): void {
+            $fromStatus = (int) $application->status;
+            $this->audit($application, 'deleted', $fromStatus, $application->current_stage, $remarks ?: 'Application deleted by VLE', $user);
+            $application->delete();
         });
     }
 
@@ -325,18 +347,39 @@ final class ScholarshipService extends BaseService implements ScholarshipService
         });
     }
 
-    public function createIcBatch(array $applicationIds, User $user, ?string $momFilePath = null, ?string $remarks = null): ScholarshipWorkflowBatch
+    /**
+     * @param  list<int>  $applicationIds
+     * @param  array<int, int>  $amountOverrides  application_id => IC-selected award amount
+     */
+    public function createIcBatch(array $applicationIds, User $user, ?string $momFilePath = null, ?string $remarks = null, array $amountOverrides = []): ScholarshipWorkflowBatch
     {
         if ($momFilePath === null || trim($momFilePath) === '') {
             throw ValidationException::withMessages(['mom_file_path' => 'IC batch MoM document is mandatory.']);
         }
 
-        return $this->createBatch('IC', $applicationIds, ScholarshipApplicationStatus::RecommendedBySamiti, $user, $momFilePath, $remarks);
+        return $this->createBatch('IC', $applicationIds, ScholarshipApplicationStatus::RecommendedBySamiti, $user, $momFilePath, $remarks, $amountOverrides);
     }
 
     public function createPaymentBatch(array $applicationIds, User $user, ?string $remarks = null): ScholarshipWorkflowBatch
     {
         return $this->createBatch('PAYMENT', $applicationIds, ScholarshipApplicationStatus::FinalApplicationForPayment, $user, null, $remarks);
+    }
+
+    /**
+     * Scheme-fixed award amounts an IC user may pick from when modifying an application's
+     * amount during batch verification — mirrors legacy's `scheme_helper.php::getAmount()`
+     * allow-list exactly. Never free text: the caller must select one of these values.
+     *
+     * @return list<int>
+     */
+    public function amountOptionsForScheme(int $schemeId): array
+    {
+        return match ($schemeId) {
+            1 => [2500, 3000],
+            2 => [15000, 25000],
+            3 => [5000, 10000],
+            default => [3000, 4000, 5000],
+        };
     }
 
     public function recordPaymentResult(ScholarshipApplication $application, bool $success, ?string $reference, ?string $failureReason, User $user, array $bankResponse = []): ScholarshipApplication
@@ -619,9 +662,11 @@ final class ScholarshipService extends BaseService implements ScholarshipService
             'RecommendedByDistrictUnion:recommend' => ScholarshipApplicationStatus::RecommendedForPayment,
             'RecommendedByDistrictUnion:return' => ScholarshipApplicationStatus::RejectedByHQ,
             'RecommendedByDistrictUnion:reject' => ScholarshipApplicationStatus::PermanentlyRejectedByHQ,
-            'RecommendedForPayment:recommend' => ScholarshipApplicationStatus::FinalApplicationForPayment,
+            'RecommendedForPayment:forward' => ScholarshipApplicationStatus::FinalApplicationForPayment,
+            'FinalApplicationForPayment:remove' => ScholarshipApplicationStatus::RecommendedForPayment,
             'FinalApplicationForPayment:submit_payment_batch' => ScholarshipApplicationStatus::PaymentBatchSubmitted,
-            'PaymentFailed:recommend' => ScholarshipApplicationStatus::FinalApplicationForPayment,
+            'PaymentFailed:retry' => ScholarshipApplicationStatus::RecommendedForPayment,
+            'AccountDetailsUpdatedByHQ:recommend' => ScholarshipApplicationStatus::RecommendedForPayment,
             default => null,
         };
 
@@ -632,9 +677,13 @@ final class ScholarshipService extends BaseService implements ScholarshipService
         return $status;
     }
 
-    private function createBatch(string $type, array $applicationIds, ScholarshipApplicationStatus $requiredStatus, User $user, ?string $momFilePath, ?string $remarks): ScholarshipWorkflowBatch
+    /**
+     * @param  list<int>  $applicationIds
+     * @param  array<int, int>  $amountOverrides  application_id => IC-selected award amount (IC batches only)
+     */
+    private function createBatch(string $type, array $applicationIds, ScholarshipApplicationStatus $requiredStatus, User $user, ?string $momFilePath, ?string $remarks, array $amountOverrides = []): ScholarshipWorkflowBatch
     {
-        return DB::transaction(function () use ($type, $applicationIds, $requiredStatus, $user, $momFilePath, $remarks): ScholarshipWorkflowBatch {
+        return DB::transaction(function () use ($type, $applicationIds, $requiredStatus, $user, $momFilePath, $remarks, $amountOverrides): ScholarshipWorkflowBatch {
             $applications = ScholarshipApplication::query()
                 ->whereIn('id', array_unique(array_map('intval', $applicationIds)))
                 ->where('status', $requiredStatus->value)
@@ -642,6 +691,15 @@ final class ScholarshipService extends BaseService implements ScholarshipService
 
             if ($applications->count() !== count(array_unique($applicationIds))) {
                 throw ValidationException::withMessages(['application_ids' => 'All applications must be in the required workflow status for this batch.']);
+            }
+
+            if ($type === 'IC') {
+                foreach ($applications as $application) {
+                    $override = $amountOverrides[$application->id] ?? null;
+                    if ($override !== null && (int) $override !== (int) $application->amount) {
+                        $this->modifyAmount($application, (int) $override, $user);
+                    }
+                }
             }
 
             $batch = ScholarshipWorkflowBatch::query()->create([
@@ -679,8 +737,96 @@ final class ScholarshipService extends BaseService implements ScholarshipService
                 }
             }
 
+            if ($type === 'PAYMENT') {
+                $this->generateAxisPaymentFile($batch, $applications, $user);
+            }
+
             return $batch->refresh();
         });
+    }
+
+    /**
+     * Writes the AXIS bank payment-instruction file for a payment batch — a pipe-delimited
+     * fixed-format .txt file, one line per application, matching legacy `Payment::finishpayment()`
+     * exactly (field order/positions matter: an external scheduler process consumes this file).
+     * Output directory is configurable (`axis_payment.output_path`) since legacy hardcoded a
+     * server-local path outside the web root.
+     *
+     * @param  EloquentCollection<int, ScholarshipApplication>  $applications
+     */
+    private function generateAxisPaymentFile(ScholarshipWorkflowBatch $batch, EloquentCollection $applications, User $user): void
+    {
+        $directory = (string) config('axis_payment.output_path');
+        if (! is_dir($directory)) {
+            mkdir($directory, 0755, true);
+        }
+
+        $fileName = $batch->batch_number.'.txt';
+        $lines = $applications->map(fn (ScholarshipApplication $application): string => $this->axisPaymentLine($application, $user))->implode(PHP_EOL);
+
+        file_put_contents($directory.DIRECTORY_SEPARATOR.$fileName, $lines.PHP_EOL);
+
+        $batch->forceFill([
+            'axis_file_path' => $directory.DIRECTORY_SEPARATOR.$fileName,
+            'axis_file_generated_at' => now(),
+        ])->save();
+    }
+
+    private function axisPaymentLine(ScholarshipApplication $application, User $user): string
+    {
+        $address = trim((string) preg_replace('/\s+/', ' ', (string) $application->address));
+        $fields = [
+            'P', 'NE', (string) config('axis_payment.vendor_code'),
+            (string) $application->application_number,
+            (string) config('axis_payment.debit_account_number'),
+            now()->format('Y-m-d'),
+            'INR',
+            (string) $application->amount,
+            (string) $application->student_bank_account_holder_name,
+            (string) $application->application_number,
+            (string) $application->student_bank_account_number,
+            '10',
+            $address, $address, $address,
+            (string) $application->district?->name,
+            (string) config('axis_payment.state_name'),
+            (string) $application->pincode,
+            (string) $application->student_bank_ifsc,
+            (string) $application->student_bank_name,
+            '', '', '', '', '',
+            (string) config('axis_payment.remitter_email'),
+            '', '', '', '', '', '', '', '', '',
+            'VEND', '',
+            now()->format('Y-m-d H-i-s'),
+            (string) $user->id,
+            '', '', '', '', '',
+        ];
+
+        return implode('^', $fields);
+    }
+
+    /**
+     * IC-only award amount override during IC batch (MoM) verification. The amount must be one
+     * of the scheme's fixed values (`amountOptionsForScheme()`) — never free text — and the audit
+     * trail records both the standard, automatically-calculated amount and the IC-modified amount.
+     */
+    private function modifyAmount(ScholarshipApplication $application, int $amount, User $user): void
+    {
+        $standardAmount = (int) $application->amount;
+        $options = $this->amountOptionsForScheme((int) $application->scheme_id);
+
+        if (! in_array($amount, $options, true)) {
+            throw ValidationException::withMessages([
+                'amount' => 'Amount must be one of the scheme-defined values: '.implode(', ', $options).'.',
+            ]);
+        }
+
+        $application->fill(['amount' => $amount, 'updated_by' => $user->id])->save();
+
+        $this->audit($application, 'amount_modified', (int) $application->status, $application->current_stage, 'Award amount modified by IC', $user, [
+            'standard_amount' => $standardAmount,
+            'previous_amount' => $standardAmount,
+            'modified_amount' => $amount,
+        ]);
     }
 
     /**

@@ -195,6 +195,16 @@ class ScholarshipController extends Controller
         return redirect()->route('applications.show', $application)->with('status', 'Scholarship application submitted.');
     }
 
+    public function destroy(Request $request, ScholarshipApplication $application): RedirectResponse
+    {
+        $application = $this->applications->findVisible($application->id, $request->user());
+        Gate::authorize('delete', $application);
+
+        $this->service->deleteDraft($application, $request->user(), $request->input('remarks'));
+
+        return redirect()->route('applications.index')->with('status', 'Application deleted.');
+    }
+
     public function walletRedirect(Request $request, ScholarshipApplication $application): View
     {
         $application = $this->applications->findVisible($application->id, $request->user());

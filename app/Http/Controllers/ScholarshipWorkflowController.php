@@ -7,6 +7,7 @@ namespace App\Http\Controllers;
 use App\Domains\Scholarship\Contracts\ScholarshipRepositoryInterface;
 use App\Domains\Scholarship\Contracts\ScholarshipServiceInterface;
 use App\Models\AcademicSession;
+use App\Models\Scheme;
 use App\Models\ScholarshipApplication;
 use App\Models\ScholarshipWorkflowBatch;
 use Illuminate\Http\RedirectResponse;
@@ -30,6 +31,8 @@ class ScholarshipWorkflowController extends Controller
             'batches' => ScholarshipWorkflowBatch::query()->latest()->limit(10)->get(),
             'academicSessions' => AcademicSession::query()->orderByDesc('start_date')->get(),
             'filters' => $request->query(),
+            'amountOptionsByScheme' => Scheme::query()->pluck('id')
+                ->mapWithKeys(fn (int $schemeId): array => [$schemeId => $this->service->amountOptionsForScheme($schemeId)]),
         ]);
     }
 
@@ -39,13 +42,15 @@ class ScholarshipWorkflowController extends Controller
         Gate::authorize('view', $application);
         $application = $this->applications->findVisible($application->id, $request->user());
         $data = $request->validate([
-            'action' => ['required', 'in:recommend,return,reject'],
+            'action' => ['required', 'in:recommend,return,reject,forward,remove,retry'],
             'remarks' => ['nullable', 'string'],
             'correction_sections' => ['nullable', 'array'],
             'correction_sections.*' => ['string', 'max:80'],
             'editable_documents' => ['nullable', 'array'],
             'editable_documents.*' => ['string', 'max:80'],
         ]);
+
+        Gate::authorize('act', [$application, $data['action']]);
 
         $this->service->transition(
             $application,
@@ -62,15 +67,23 @@ class ScholarshipWorkflowController extends Controller
     public function icBatch(Request $request): RedirectResponse
     {
         Gate::authorize('workflow.action');
+        Gate::authorize('workflow.ic-batch');
 
         $data = $request->validate([
             'application_ids' => ['required', 'array', 'min:1'],
             'application_ids.*' => ['integer', 'exists:scholarship_applications,id'],
             'mom_file_path' => ['required', 'string', 'max:255'],
             'remarks' => ['nullable', 'string'],
+            'amounts' => ['nullable', 'array'],
+            'amounts.*' => ['nullable', 'integer', 'min:0'],
         ]);
 
-        $this->service->createIcBatch($data['application_ids'], $request->user(), $data['mom_file_path'], $data['remarks'] ?? null);
+        $amountOverrides = collect($data['amounts'] ?? [])
+            ->filter(fn (mixed $amount): bool => $amount !== null && $amount !== '')
+            ->mapWithKeys(fn (mixed $amount, int|string $applicationId): array => [(int) $applicationId => (int) $amount])
+            ->all();
+
+        $this->service->createIcBatch($data['application_ids'], $request->user(), $data['mom_file_path'], $data['remarks'] ?? null, $amountOverrides);
 
         return back()->with('status', 'IC batch submitted.');
     }
@@ -78,6 +91,7 @@ class ScholarshipWorkflowController extends Controller
     public function paymentBatch(Request $request): RedirectResponse
     {
         Gate::authorize('workflow.action');
+        Gate::authorize('workflow.payment-batch');
 
         $data = $request->validate([
             'application_ids' => ['required', 'array', 'min:1'],
@@ -95,6 +109,7 @@ class ScholarshipWorkflowController extends Controller
         Gate::authorize('workflow.action');
         Gate::authorize('view', $application);
         $application = $this->applications->findVisible($application->id, $request->user());
+        Gate::authorize('recordPaymentResult', $application);
         $data = $request->validate([
             'success' => ['required', 'boolean'],
             'payment_reference_id' => ['nullable', 'string', 'max:255'],

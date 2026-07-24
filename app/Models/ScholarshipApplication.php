@@ -132,6 +132,9 @@ class ScholarshipApplication extends Model
         return $this->belongsTo(Scheme::class);
     }
 
+    /**
+     * @return BelongsTo<District, $this>
+     */
     public function district(): BelongsTo
     {
         return $this->belongsTo(District::class);

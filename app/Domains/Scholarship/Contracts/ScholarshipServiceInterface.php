@@ -42,8 +42,9 @@ interface ScholarshipServiceInterface
 
     /**
      * @param  array<int, int>  $applicationIds
+     * @param  array<int, int>  $amountOverrides
      */
-    public function createIcBatch(array $applicationIds, User $user, ?string $momFilePath = null, ?string $remarks = null): ScholarshipWorkflowBatch;
+    public function createIcBatch(array $applicationIds, User $user, ?string $momFilePath = null, ?string $remarks = null, array $amountOverrides = []): ScholarshipWorkflowBatch;
 
     /**
      * @param  array<int, int>  $applicationIds
@@ -54,4 +55,11 @@ interface ScholarshipServiceInterface
      * @param  array<string, mixed>  $bankResponse
      */
     public function recordPaymentResult(ScholarshipApplication $application, bool $success, ?string $reference, ?string $failureReason, User $user, array $bankResponse = []): ScholarshipApplication;
+
+    public function deleteDraft(ScholarshipApplication $application, User $user, ?string $remarks = null): void;
+
+    /**
+     * @return list<int>
+     */
+    public function amountOptionsForScheme(int $schemeId): array;
 }

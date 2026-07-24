@@ -59,6 +59,7 @@ Route::middleware(['auth', 'legacy.visitor'])->group(function (): void {
     Route::get('applications/{application}', [ScholarshipController::class, 'show'])->name('applications.show');
     Route::get('applications/{application}/edit', [ScholarshipController::class, 'edit'])->name('applications.edit');
     Route::put('applications/{application}', [ScholarshipController::class, 'update'])->name('applications.update');
+    Route::delete('applications/{application}', [ScholarshipController::class, 'destroy'])->name('applications.destroy');
     Route::post('applications/{application}/submit', [ScholarshipController::class, 'submit'])->name('applications.submit');
     Route::get('applications/{application}/wallet', [ScholarshipController::class, 'walletRedirect'])->name('applications.wallet.redirect');
     Route::match(['get', 'post'], 'applications/{application}/wallet/callback', [ScholarshipController::class, 'walletCallback'])->name('applications.wallet.callback');

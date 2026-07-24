@@ -148,6 +148,12 @@
                             @can('update', $application)
                                 <a class="btn btn-sm btn-outline-secondary" href="{{ route('applications.edit', ['application' => $application, 'scheme' => $filters['scheme_id']]) }}"><i class="fa-regular fa-pen-to-square"></i></a>
                             @endcan
+                            @can('delete', $application)
+                                <form class="d-inline" method="POST" action="{{ route('applications.destroy', $application) }}" onsubmit="return confirm('Delete this application? This cannot be undone.');">
+                                    @csrf @method('DELETE')
+                                    <button class="btn btn-sm btn-outline-danger" title="Delete"><i class="fa-regular fa-trash-can"></i></button>
+                                </form>
+                            @endcan
                         </td>
                     </tr>
                 @empty
